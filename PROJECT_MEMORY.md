@@ -14,6 +14,24 @@
 與本 repo 既有的 `fubon_client.py`（富邦證券 API 連線/查詢框架）是**兩個獨立用途**：
 `fubon_client.py` 負責券商端登入與查詢（目前下單功能停用），本專案負責公開行情資料的抓取、選股排名、報告產出與通知，兩者不互相依賴。
 
+### 1.1 隱私與公開架構（重要，2026-08-03 確定）
+
+使用者計畫日後把這個 repo 改成**公開**（因為 GitHub Pages 在免費方案下只能用公開 repo 架設 Dashboard）。但真實持股資料（現金金額、股數、成本、市值）**絕對不能**進公開 repo。因此系統分成「完整版」與「公開版」兩份平行資料：
+
+| | 完整版 | 公開版 |
+|---|---|---|
+| 內容 | 現金金額、每檔股數/成本/市值/現價、總資產 + 全部非敏感欄位 | 只有現金**佔比%**、持股**佔比%**/損益%/績效%/PE，**沒有**股數、成本、市值、現價、總資產 |
+| 存放路徑 | `reports/YYYY-MM-DD/report.json` | `reports_public/YYYY-MM-DD/report.json` |
+| 是否進 git | **否**，`.gitignore` 排除，只存在本機/私人環境 | **是**，會 commit，供公開 repo／GitHub Pages Dashboard 讀取 |
+| 產生方式 | `report_builder.build_report()` / `save_report()` | `report_schema.build_public_report()` 從完整版拿掉敏感欄位，`report_builder.save_public_report()` 寫檔 |
+| Schema | `report_schema.REPORT_SCHEMA` | `report_schema.PUBLIC_REPORT_SCHEMA` |
+
+`config/holdings.json`（使用者真實持股設定檔）同樣被 `.gitignore` 排除，只保留 `config/holdings.example.json` 作為公開的格式範例。
+
+NAV 曲線（`nav_history`）本身是相對值（以某天為 1.0 基準的比值），**兩個版本都保留**，不算洩漏——但用來算 NAV 的基準值 `baseline_total_value`（絕對金額）只存在完整版旁邊的 `reports/nav_state.json`，該檔案也被 `.gitignore` 排除。
+
+**尚未解決的限制**：GitHub Actions 每次執行都是全新環境，沒有本機硬碟持久化。`config/holdings.json` 不進 git，代表 Actions 上執行時抓不到真實持股，除非透過 GitHub Secret（`HOLDINGS_JSON`）在執行當下寫入（見 `.github/workflows/daily-pipeline.yml`，執行完不會被 commit）。但 `reports/nav_state.json`、`reports/rebalance_state.json` 這兩個「跨日狀態檔」目前完全沒有機制在 GitHub Actions 執行之間保留——每次 Actions 執行都會是「全新的第一天」（NAV 重新從 1.0 開始、再平衡狀態重置）。這代表：**目前只有在同一台機器上連續本機執行，NAV 曲線與再平衡邏輯才能正確累積跨日狀態；純靠 GitHub Actions 自動排程還無法正確累積這兩項。** 之後要嘛（a）固定在本機執行、Actions 只是輔助，要嘛（b）之後研究把這兩個狀態檔也透過 GitHub Secret 或其他私人儲存機制跨執行持久化，目前尚未實作，先誠實記錄這個缺口。
+
 ## 2. 系統架構
 
 ```
@@ -56,8 +74,10 @@ GitHub Actions（排程）
 | `.github/workflows/unit-tests.yml`（原 `phase1-test.yml`） | push 到 `src/`／`strategies/`／`tests/` 或手動觸發時跑 `pytest tests/`（涵蓋 Phase 1＋2＋3 所有測試） | 已建立（Phase 1，Phase 2／3 沿用同一個 workflow） |
 | `src/portfolio.py` | 現金＋持股快照：`compute_performance_pct()` 算 1日/1週/1月報酬率、`build_holding()`／`build_portfolio_snapshot()` 算市值與佔比 | 已建立（Phase 3） |
 | `src/rebalance.py` | 再平衡觸發規則：`run_rebalance_calendar()` 依「新資金匯入」／「當月第一個交易日」觸發，逐月配額不重複觸發 | 已建立（Phase 3） |
-| `src/report_schema.py` | report.json 的 JSON Schema（`jsonschema` 套件）與 `validate_report()` | 已建立（Phase 3） |
-| `src/report_builder.py` | `build_report()` 組裝＋驗證、`save_report()`／`load_report()` 讀寫 `reports/YYYY-MM-DD/report.json` | 已建立（Phase 3） |
+| `src/report_schema.py` | 完整版 `REPORT_SCHEMA` ＋ 公開版 `PUBLIC_REPORT_SCHEMA`、`validate_report()`／`validate_public_report()`、`build_public_report()`（去敏感化） | 已建立（Phase 3），公開版於 2026-08-03 新增 |
+| `src/report_builder.py` | `build_report()`／`save_report()`／`load_report()`（完整版，不進 git）＋ `save_public_report()`／`load_public_report()`（公開版，進 git） | 已建立（Phase 3），公開版於 2026-08-03 新增 |
+| `tests/test_public_report.py` | 驗證公開版確實拿掉所有絕對金額欄位、保留相對值欄位、通過自己的 Schema，並用字串比對確認檔案內容找不到金額數字 | 已建立（2026-08-03） |
+| `scripts/convert_holdings_csv.py` | 把富邦「成交紀錄」CSV（Big5）轉成 `config/holdings.json`：以移動平均法算各檔剩餘股數與成本，並依成本佔比門檻篩掉零散部位 | 已建立（2026-08-03） |
 | `tests/test_portfolio.py` | 對應 T3-1（績效%計算） | 已建立（Phase 3） |
 | `tests/test_report_builder.py` | 對應 T3-2（連續多日報告互不覆蓋）、T3-3（JSON Schema 驗證） | 已建立（Phase 3） |
 | `tests/test_rebalance.py` | 對應 T3-4（再平衡觸發規則、僅觸發一次） | 已建立（Phase 3） |
@@ -66,14 +86,16 @@ GitHub Actions（排程）
 | `src/sectors.py` | `build_watched_sectors()`：依設定檔的代表股清單算各關注類股當日平均漲跌幅 | 已建立（Phase 3 收尾） |
 | `tests/test_nav.py`／`test_score_history.py`／`test_sectors.py` | 分別對應上面三個模組的正確性測試 | 已建立（Phase 3 收尾） |
 | `config/universe.json` | 策略引擎每日評分的候選股清單（精選 30 檔，非全市場，避免 FinMind 免費額度打爆） | 已建立（Phase 3 收尾） |
-| `config/holdings.json` | 使用者手動維護的現金＋實際持股，含 `new_cash_inflow_today` 手動旗標（供再平衡判斷用，不自動推斷） | 已建立（Phase 3 收尾），內容為空白預設值，待使用者填入真實持股 |
-| `config/holdings.example.json` | `holdings.json` 的格式範例 | 已建立（Phase 3 收尾） |
+| `config/holdings.json` | 使用者手動維護的現金＋實際持股，含 `new_cash_inflow_today` 手動旗標（供再平衡判斷用，不自動推斷）。**已於 2026-08-03 從 git 移除並加入 `.gitignore`**，只存在本機；GitHub Actions 執行時改由 `HOLDINGS_JSON` Secret 在執行當下寫入 | 不進 git，待使用者於本機填入真實持股 |
+| `config/holdings.example.json` | `holdings.json` 的格式範例（公開，只有假資料） | 已建立（Phase 3 收尾） |
 | `config/watched_sectors.json` | 三大關注類股設定：半導體（2330/2454/3711）、AI（3231/2382/6669）、金融（2882/2881/2891） | 已建立（Phase 3 收尾），已依使用者指示設定完成 |
 | `scripts/daily_pipeline.py` | **每日整合腳本**：`run_pipeline()` 是不碰網路/檔案的純函式（串接 rank_stocks→score_history→predictor→portfolio→sectors→nav→rebalance→report_builder），`main()` 負責讀設定檔、呼叫 FinMind、寫入 `reports/` 與各狀態檔 | 已建立，`run_pipeline()` 邏輯以合成資料測試通過；`main()` 串接真實 FinMind 需連網環境執行 |
 | `tests/test_daily_pipeline.py` | 用合成資料跑 `run_pipeline()` 驗證單次執行、連續 5 天不互相污染、資金匯入觸發再平衡、缺資料股票不中斷流程 | 已建立 |
 | `.github/workflows/daily-pipeline.yml` | 手動觸發執行 `daily_pipeline.py` 並把 `reports/` 的變更 commit 回 repo；等 Phase 5 做完 Email 才會改成台灣時間 06:00 的排程 | 已建立 |
-| `reports/YYYY-MM-DD/report.json` | 每日報告 Model，歷史保留 | Model 格式、產生程式、整合腳本皆已完成；**尚無一天是用真實 FinMind 資料跑出來的**，需使用者於 GitHub Actions 手動觸發 `daily-pipeline.yml` 或本機執行 `python scripts/daily_pipeline.py` 才能產出第一份真實報告 |
-| `reports/score_history.json`／`reports/nav_state.json`／`reports/rebalance_state.json` | 每日整合腳本的跨日狀態檔，需要 commit 回 repo（GitHub Actions runner 之間不保留狀態） | 已設計，尚未有真實資料 |
+| `reports/YYYY-MM-DD/report.json` | 每日報告 Model **完整版**（含真實金額），`.gitignore` 排除，只存在本機 | Model 格式、產生程式、整合腳本皆已完成；**尚無一天是用真實 FinMind 資料跑出來的** |
+| `reports_public/YYYY-MM-DD/report.json` | 每日報告 Model **公開版**（去敏感化），會 commit，供公開 repo／Dashboard 讀取 | 同上，尚無真實資料 |
+| `reports/score_history.json` | 排名分數多日快照（只有分數，無金額）**會 commit**，讓 GitHub Actions 之間能累積預測所需的歷史 | 已設計，尚未有真實資料 |
+| `reports/nav_state.json`／`reports/rebalance_state.json` | NAV 基準值與再平衡跨日狀態，含絕對金額，**不進 git**；因此 GitHub Actions 之間無法累積（見 1.1 節末段的未解限制） | 已設計，尚未有真實資料 |
 | `dashboard/` | GitHub Pages 靜態 Dashboard（View） | 規劃中，Phase 4 建立 |
 | `fubon_client.py` | 富邦證券 API 連線與持股查詢（既有，與本專案獨立，僅本機執行） | 已建立（本專案之前） |
 
@@ -180,14 +202,23 @@ GitHub Actions（排程）
   - `config/universe.json`（30 檔精選候選股）、`config/watched_sectors.json`（依使用者指示：半導體/AI/金融）、`config/holdings.json`（空白預設值，待使用者填入真實持股；含 `new_cash_inflow_today` 手動旗標取代不可靠的自動推斷）
   - `tests/test_daily_pipeline.py` 用合成資料驗證：單次執行產生合規 report.json、連續 5 天 `nav_history` 正確逐日累積且各天報告不互相污染、只有當月第一個交易日觸發再平衡、資金匯入日單獨觸發、缺價格資料的股票被優雅排除不中斷流程 — 4 項全過（全套累計 58/58）
   - `.github/workflows/daily-pipeline.yml`：手動觸發執行整合腳本並把 `reports/` 的變更 commit 回 repo
+- **已完成（隱私架構調整）**：完整版／公開版報告分離 — 2026-08-03，因應使用者「repo 之後要公開以便用 GitHub Pages 架 Dashboard，但真實持股不能外流」的決定
+  - `src/report_schema.py` 新增 `PUBLIC_REPORT_SCHEMA`、`build_public_report()`、`validate_public_report()`
+  - `src/report_builder.py` 新增 `save_public_report()`／`load_public_report()`／`public_report_path()`，完整版與公開版分別寫入 `reports/` 與 `reports_public/`
+  - `.gitignore` 排除 `config/holdings.json`、`reports/*/`、`reports/nav_state.json`、`reports/rebalance_state.json`；`config/holdings.json` 已用 `git rm --cached` 從版控移除
+  - `daily_pipeline.py` 的 `main()` 同時寫出兩個版本；workflow 改為只 commit `reports_public/` 與 `reports/score_history.json`（分數歷史不含金額，可公開），並新增從 `HOLDINGS_JSON` Secret 寫入持股設定的步驟
+  - `tests/test_public_report.py` 5 項測試：確認公開版拿掉 `cash.amount`／`shares`／`cost_basis`／`current_price`／`market_value`／`total_market_value`／`total_value`，保留佔比%／損益%／績效%／排名／預測／NAV，通過自己的 Schema，且用字串比對確保檔案內容真的找不到任何金額數字（防止日後新增欄位時漏改）
+  - 全套測試 63/63 通過
 - **進行中**：無，等待使用者於 GitHub Actions 或本機用真實 FinMind 資料實際跑一次 `daily_pipeline.py`，才能產出第一份真實 report.json 並完整驗證 T3-2／T3-4 的 Gate；之後即可進入 Phase 4
 - **已知限制**：
   - 開發用雲端 sandbox 連不到 `api.finmindtrade.com`，此限制會持續影響後續所有 Phase 的資料驗證，皆須在 GitHub Actions 或使用者本機執行後回報結果
   - `requirements.txt` / `requirements-broker.txt` 曾因檔案內中文註解，在 Windows 繁體中文語系（cp950）下被 `pip install -r` 讀取時噴 `UnicodeDecodeError`，已改為純英文註解修正；日後新增 requirements 檔案應避免非 ASCII 字元
   - `src/strategy_engine.py` 目前只計算「最新一筆」因子值（適合每日排名/報告用途），尚未支援對整段歷史序列逐日計算因子（回測 Phase 需要時要再擴充）
-  - **`reports/` 目前完全是空的**：`config/holdings.json` 是空白預設值（cash=0、無持股），第一次執行 `daily_pipeline.py` 前務必先照 `config/holdings.example.json` 的格式填入真實持股，否則產出的報告 `holdings` 會是空陣列
+  - **`reports/` 與 `reports_public/` 目前都是空的**：`config/holdings.json` 已從 git 移除且為空白預設值，第一次執行 `daily_pipeline.py` 前務必先在本機照 `config/holdings.example.json` 格式填入真實持股（或用 `scripts/convert_holdings_csv.py` 從券商匯出檔轉換），否則產出的報告 `holdings` 會是空陣列
+  - **跨日狀態在 GitHub Actions 上無法累積**（見 1.1 節末段）：`nav_state.json`／`rebalance_state.json` 不進 git，Actions 每次執行都是全新環境，NAV 會重新從 1.0 開始、再平衡狀態重置。目前只有本機連續執行能正確累積，這個缺口尚未解決
   - `daily_pipeline.py` 的 `is_first_trading_day_of_month` 判斷依賴 `0050` 的日期序列做市場交易日曆，若 `0050` 抓取失敗會直接中止整批執行（`main()` 已對此情況印出錯誤訊息並回傳非 0 結束碼，不會產生半殘的報告）
   - `config/universe.json` 是精選 30 檔，非全市場；之後想擴大選股範圍只需編輯這份 JSON，不需要改程式碼
+  - 使用者的實際持股共 245 檔（多為 1～2 股零股），`convert_holdings_csv.py` 預設用 1% 成本佔比門檻篩選後保留 22 檔；門檻可用 `--min-pct` 調整
 
 ## 6. 資料源清單與已知限制/風險
 
@@ -212,3 +243,5 @@ GitHub Actions（排程）
 - 2026-08-03：完成 Phase 2（`src/predictor.py`：`predict_next_day()` 以排名分數線性趨勢外插預測、`walk_forward_backtest()` 逐日滾動回測記錄重疊率；`tests/test_predictor.py`）。純運算、不需外部資料源，7 項 pytest 於此開發環境直接驗證通過（全套累計 23/23）。`.github/workflows/phase1-test.yml` 更名為 `unit-tests.yml`，沿用同一個 workflow 涵蓋 Phase 1＋2 測試。**Phase 2 Gate 通過，進入 Phase 3**。
 - 2026-08-03：完成 Phase 3（`src/portfolio.py`、`src/rebalance.py`、`src/report_schema.py`、`src/report_builder.py`，新增 `jsonschema` 相依套件；`tests/test_portfolio.py`、`tests/test_report_builder.py`、`tests/test_rebalance.py`）。17 項 pytest 全數通過（全套累計 39/39），涵蓋 T3-1～T3-4 自動化驗證。**這輪驗證用的是測試建構的範例資料，不是真實 5 個交易日的 FinMind 資料**——因為目前還沒有把 Phase 0～3 的模組串成一支「每日整合腳本」定時產生真實 report.json，這是接下來的已知缺口，計劃在 Phase 4 建 Dashboard 前補上，屆時要用真實資料重跑一次 T3-2／T3-4 才能算完整通過 Gate。`watched_sectors` 需要的「三大關注類股」清單也還沒跟使用者確認。**Phase 3 自動化部分 Gate 通過，進入 Phase 4**。
 - 2026-08-03：使用者確認關注類股為半導體／AI／金融，並要求先補齊每日整合腳本再進 Phase 4。新增 `src/nav.py`、`src/score_history.py`、`src/sectors.py`（各自測試）、`scripts/daily_pipeline.py`（`run_pipeline()` 純函式串接所有 Phase 0～3 模組）、`tests/test_daily_pipeline.py`（合成資料驗證單次執行與連續 5 天不互污染）、`config/universe.json`／`holdings.json`／`holdings.example.json`／`watched_sectors.json`、`.github/workflows/daily-pipeline.yml`（手動觸發＋自動 commit `reports/`）。`strategy_engine.rank_stocks()` 新增 `apply_position_limit` 參數（向後相容，Phase 1 測試不受影響）。22 項新測試全數通過（全套累計 58/58）。**`reports/` 目錄目前仍是空的**：`config/holdings.json` 是空白預設值，且這支整合腳本尚未用真實 FinMind 資料實際跑過，待使用者於 GitHub Actions 手動觸發 `daily-pipeline.yml` 或本機執行後回報結果，才能算完整驗證 T3-2／T3-4 的 Gate。
+- 2026-08-03：使用者提供富邦匯出的「庫存」與「成交紀錄」CSV（Big5 編碼）。庫存檔沒有成本欄位，改用成交紀錄以移動平均法回推各檔剩餘股數與平均成本，寫成 `scripts/convert_holdings_csv.py`；實測 245 檔持股中依 1% 成本佔比門檻篩選後保留 22 檔較大部位。
+- 2026-08-03：使用者確認 repo 之後要改成**公開**（GitHub Pages 免費方案只支援公開 repo），因此新增完整版／公開版報告分離機制：`report_schema.build_public_report()` 去除所有絕對金額欄位、`report_builder.save_public_report()` 寫入 `reports_public/`，`.gitignore` 排除 `config/holdings.json` 與 `reports/` 下的完整版報告與狀態檔（`config/holdings.json` 已 `git rm --cached`），workflow 改為只 commit 公開版並支援用 `HOLDINGS_JSON` Secret 注入持股。新增 `tests/test_public_report.py` 5 項測試（全套 63/63）。**仍未解決**：`nav_state.json`／`rebalance_state.json` 跨日狀態無法在 GitHub Actions 執行之間保留，純雲端排程會讓 NAV 每次從 1.0 重來，見 1.1 節。

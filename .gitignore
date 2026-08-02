@@ -3,3 +3,12 @@ __pycache__/
 *.pyc
 .venv/
 phase0_snapshot.json
+
+# 真實持股資料與完整版報告（含現金金額、股數、成本、市值等絕對金額），
+# 不應進 git，尤其是公開 repo。公開版報告在 reports_public/，已去敏感化。
+config/holdings.json
+reports/*/
+reports/nav_state.json
+reports/rebalance_state.json
+!reports/.gitkeep
+!reports/score_history.json

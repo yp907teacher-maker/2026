@@ -1,6 +1,0 @@
-{
-  "_comment": "手動維護你目前實際的現金與持股，系統只讀取這份設定計算市值/績效，不會自動下單或自動修改這個檔案。範例格式見 holdings.example.json。",
-  "cash": 0,
-  "holdings": [],
-  "new_cash_inflow_today": false
-}

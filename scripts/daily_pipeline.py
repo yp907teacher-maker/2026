@@ -20,7 +20,7 @@ from src.nav import append_nav_history, compute_nav_entry
 from src.portfolio import build_portfolio_snapshot
 from src.predictor import predict_next_day
 from src.rebalance import check_rebalance
-from src.report_builder import build_report, load_report, save_report
+from src.report_builder import build_report, load_report, save_public_report, save_report
 from src.score_history import append_score_snapshot, save_score_history, to_predictor_input
 from src.sectors import build_watched_sectors
 from src.strategy_engine import rank_stocks
@@ -28,7 +28,8 @@ from src.strategy_engine import rank_stocks
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CONFIG_DIR = REPO_ROOT / "config"
 STRATEGIES_DIR = REPO_ROOT / "strategies"
-REPORTS_DIR = REPO_ROOT / "reports"
+REPORTS_DIR = REPO_ROOT / "reports"  # 完整版（含真實金額），.gitignore 排除，僅本機／私人環境保存
+PUBLIC_REPORTS_DIR = REPO_ROOT / "reports_public"  # 去敏感化版，會 commit 進 git 給公開 Dashboard 讀
 NAV_STATE_PATH = REPORTS_DIR / "nav_state.json"
 REBALANCE_STATE_PATH = REPORTS_DIR / "rebalance_state.json"
 SCORE_HISTORY_PATH = REPORTS_DIR / "score_history.json"
@@ -232,11 +233,13 @@ def main() -> int:
     )
 
     save_report(result["report"], base_dir=REPORTS_DIR)
+    save_public_report(result["report"], base_dir=PUBLIC_REPORTS_DIR)
     save_score_history(result["score_history"], SCORE_HISTORY_PATH)
     _save_json(NAV_STATE_PATH, result["nav_state"])
     _save_json(REBALANCE_STATE_PATH, result["rebalance_state"])
 
-    print(f"report.json 已產生：reports/{report_date}/report.json")
+    print(f"完整版（含真實金額，不進 git）已產生：reports/{report_date}/report.json")
+    print(f"公開版（去敏感化，會 commit）已產生：reports_public/{report_date}/report.json")
     print(f"再平衡：{result['report']['rebalance']}")
     return 0
 
