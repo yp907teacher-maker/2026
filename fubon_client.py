@@ -59,6 +59,14 @@ class FubonClient:
             order_type=OrderType.Stock,
         )
 
+    def get_holdings(self, account=None):
+        """查詢目前持股庫存（查詢動作，不涉及下單）。"""
+        account = account or self.get_default_account()
+        result = self.sdk.accounting.inventories(account)
+        if not result.is_success:
+            raise RuntimeError(f"查詢持股失敗: {result.message}")
+        return result.data
+
     def place_order(self, order):
         """
         下單動作目前停用。
@@ -73,4 +81,8 @@ if __name__ == "__main__":
     client = FubonClient()
     accounts = client.connect()
     print("登入成功，帳戶清單:", accounts)
+
+    holdings = client.get_holdings()
+    print("目前持股:", holdings)
+
     client.disconnect()
