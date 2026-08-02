@@ -1,0 +1,34 @@
+name: Phase 0 資料源驗證
+
+# T0-3：可手動觸發執行並產生 log，執行時間需 < 5 分鐘
+on:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: 安裝相依套件
+        run: pip install -r requirements.txt
+
+      - name: 執行 Phase 0 驗證
+        env:
+          FINMIND_TOKEN: ${{ secrets.FINMIND_TOKEN }}
+        run: python scripts/verify_phase0.py
+
+      - name: 上傳數值快照
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase0-snapshot
+          path: phase0_snapshot.json
+          if-no-files-found: warn

@@ -1,0 +1,11 @@
+# 富邦證券 API（僅本機 Windows 使用，供 fubon_client.py 查詢持股）
+#
+# fubon_neo 未發佈於公開 PyPI，且官方 wheel 為 win_amd64 專用，
+# 無法在 GitHub Actions（Linux）安裝，因此與 requirements.txt 分開。
+#
+# 安裝方式：先至富邦官網下載 wheel，再執行
+#     py -3.12 -m pip install .\fubon_neo-2.2.8-cp37-abi3-win_amd64.whl
+#     py -3.12 -m pip install -r requirements-broker.txt
+#
+# 支援 Python 3.8～3.13，不支援 3.14。
+python-dotenv
