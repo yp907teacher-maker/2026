@@ -61,7 +61,19 @@ GitHub Actions（排程）
 | `tests/test_portfolio.py` | 對應 T3-1（績效%計算） | 已建立（Phase 3） |
 | `tests/test_report_builder.py` | 對應 T3-2（連續多日報告互不覆蓋）、T3-3（JSON Schema 驗證） | 已建立（Phase 3） |
 | `tests/test_rebalance.py` | 對應 T3-4（再平衡觸發規則、僅觸發一次） | 已建立（Phase 3） |
-| `reports/YYYY-MM-DD/report.json` | 每日報告 Model，歷史保留。**程式已完成，但目前尚無「每日自動組裝真實資料並寫入 reports/」的排程腳本**，見下方已知限制 | Model 格式與讀寫程式已完成（Phase 3），實際每日產出待整合進 GitHub Actions 排程（Phase 5／6） |
+| `src/nav.py` | `compute_nav_entry()` 算當日 NAV／回撤（狀態跨日持久化）、`append_nav_history()` 累積歷史不重複 | 已建立（Phase 3 收尾） |
+| `src/score_history.py` | 排名分數的多日滾動快照儲存，`to_predictor_input()` 轉成 predictor 需要的格式 | 已建立（Phase 3 收尾） |
+| `src/sectors.py` | `build_watched_sectors()`：依設定檔的代表股清單算各關注類股當日平均漲跌幅 | 已建立（Phase 3 收尾） |
+| `tests/test_nav.py`／`test_score_history.py`／`test_sectors.py` | 分別對應上面三個模組的正確性測試 | 已建立（Phase 3 收尾） |
+| `config/universe.json` | 策略引擎每日評分的候選股清單（精選 30 檔，非全市場，避免 FinMind 免費額度打爆） | 已建立（Phase 3 收尾） |
+| `config/holdings.json` | 使用者手動維護的現金＋實際持股，含 `new_cash_inflow_today` 手動旗標（供再平衡判斷用，不自動推斷） | 已建立（Phase 3 收尾），內容為空白預設值，待使用者填入真實持股 |
+| `config/holdings.example.json` | `holdings.json` 的格式範例 | 已建立（Phase 3 收尾） |
+| `config/watched_sectors.json` | 三大關注類股設定：半導體（2330/2454/3711）、AI（3231/2382/6669）、金融（2882/2881/2891） | 已建立（Phase 3 收尾），已依使用者指示設定完成 |
+| `scripts/daily_pipeline.py` | **每日整合腳本**：`run_pipeline()` 是不碰網路/檔案的純函式（串接 rank_stocks→score_history→predictor→portfolio→sectors→nav→rebalance→report_builder），`main()` 負責讀設定檔、呼叫 FinMind、寫入 `reports/` 與各狀態檔 | 已建立，`run_pipeline()` 邏輯以合成資料測試通過；`main()` 串接真實 FinMind 需連網環境執行 |
+| `tests/test_daily_pipeline.py` | 用合成資料跑 `run_pipeline()` 驗證單次執行、連續 5 天不互相污染、資金匯入觸發再平衡、缺資料股票不中斷流程 | 已建立 |
+| `.github/workflows/daily-pipeline.yml` | 手動觸發執行 `daily_pipeline.py` 並把 `reports/` 的變更 commit 回 repo；等 Phase 5 做完 Email 才會改成台灣時間 06:00 的排程 | 已建立 |
+| `reports/YYYY-MM-DD/report.json` | 每日報告 Model，歷史保留 | Model 格式、產生程式、整合腳本皆已完成；**尚無一天是用真實 FinMind 資料跑出來的**，需使用者於 GitHub Actions 手動觸發 `daily-pipeline.yml` 或本機執行 `python scripts/daily_pipeline.py` 才能產出第一份真實報告 |
+| `reports/score_history.json`／`reports/nav_state.json`／`reports/rebalance_state.json` | 每日整合腳本的跨日狀態檔，需要 commit 回 repo（GitHub Actions runner 之間不保留狀態） | 已設計，尚未有真實資料 |
 | `dashboard/` | GitHub Pages 靜態 Dashboard（View） | 規劃中，Phase 4 建立 |
 | `fubon_client.py` | 富邦證券 API 連線與持股查詢（既有，與本專案獨立，僅本機執行） | 已建立（本專案之前） |
 
@@ -160,15 +172,22 @@ GitHub Actions（排程）
   - T3-2（連續 5 天報告不互相覆蓋）：`test_t3_2_five_consecutive_days_produce_independent_reports` 對 5 個不同日期各自 `save_report()`，5 個 `reports/YYYY-MM-DD/` 資料夾各自獨立、內容對應各自日期 — PASS。另外驗證「同一天重複儲存」正確覆蓋當天而不新增資料夾
   - T3-3（report.json 通過 JSON Schema 驗證）：`src/report_schema.py` 定義完整 Schema，`build_report()` 組裝時自動驗證；測試涵蓋合法報告通過、缺必填欄位的報告正確拋出 `ValidationError` — PASS
   - T3-4（新資金匯入／跨月再平衡正確觸發且僅觸發一次）：`src/rebalance.py` 的 `run_rebalance_calendar()` 通過 6 種情境測試，包含「同一天同時符合兩個觸發條件仍只觸發一次」「同月配額不因呼叫端重複標記而重複觸發」「跨月後配額正常重置」— PASS
-  - Gate（連續 5 天報告資料正確性人工抽查通過）：**自動化測試已驗證程式邏輯正確，但這是用測試建構的範例資料跑的，不是真實 5 個交易日的 FinMind 資料**，見下方已知限制
-- **進行中**：無，等待使用者確認是否進入 Phase 4，或先處理已知限制中的「每日排程整合」缺口
+  - Gate（連續 5 天報告資料正確性人工抽查通過）：自動化測試已驗證程式邏輯正確（含當時用合成資料的初版驗證），**後續補上整合腳本後已用合成資料重跑一次完整 5 天流程確認不互相污染，但仍未用真實 FinMind 資料跑過**，見下方已知限制
+- **已完成（Phase 3 收尾）**：每日整合腳本 `scripts/daily_pipeline.py` — 補上原本 Phase 3 進度記錄的缺口，2026-08-03
+  - 新增 `src/nav.py`（NAV／回撤，狀態跨日持久化）、`src/score_history.py`（排名分數多日滾動快照，接給 predictor 用）、`src/sectors.py`（關注類股當日表現）
+  - `src/strategy_engine.rank_stocks()` 新增 `apply_position_limit` 參數，可回傳全部候選股分數（不只 `max_positions` 檔），供分數歷史累積使用；預設行為不變，Phase 1 測試仍全數通過
+  - `run_pipeline()`（純函式，不碰網路/檔案）把 rank_stocks → score_history → predictor → portfolio → sectors → nav → rebalance → report_builder 串成一次執行；`main()` 負責讀 `config/` 設定、呼叫 FinMind、寫入 `reports/`
+  - `config/universe.json`（30 檔精選候選股）、`config/watched_sectors.json`（依使用者指示：半導體/AI/金融）、`config/holdings.json`（空白預設值，待使用者填入真實持股；含 `new_cash_inflow_today` 手動旗標取代不可靠的自動推斷）
+  - `tests/test_daily_pipeline.py` 用合成資料驗證：單次執行產生合規 report.json、連續 5 天 `nav_history` 正確逐日累積且各天報告不互相污染、只有當月第一個交易日觸發再平衡、資金匯入日單獨觸發、缺價格資料的股票被優雅排除不中斷流程 — 4 項全過（全套累計 58/58）
+  - `.github/workflows/daily-pipeline.yml`：手動觸發執行整合腳本並把 `reports/` 的變更 commit 回 repo
+- **進行中**：無，等待使用者於 GitHub Actions 或本機用真實 FinMind 資料實際跑一次 `daily_pipeline.py`，才能產出第一份真實 report.json 並完整驗證 T3-2／T3-4 的 Gate；之後即可進入 Phase 4
 - **已知限制**：
   - 開發用雲端 sandbox 連不到 `api.finmindtrade.com`，此限制會持續影響後續所有 Phase 的資料驗證，皆須在 GitHub Actions 或使用者本機執行後回報結果
   - `requirements.txt` / `requirements-broker.txt` 曾因檔案內中文註解，在 Windows 繁體中文語系（cp950）下被 `pip install -r` 讀取時噴 `UnicodeDecodeError`，已改為純英文註解修正；日後新增 requirements 檔案應避免非 ASCII 字元
   - `src/strategy_engine.py` 目前只計算「最新一筆」因子值（適合每日排名/報告用途），尚未支援對整段歷史序列逐日計算因子（回測 Phase 需要時要再擴充）
-  - `src/predictor.py` 的 `history` 輸入目前需呼叫端自行組裝成 `{stock_id: {"score": ...}}` 的每日快照序列；`strategy_engine.rank_stocks()` 目前只回傳單日排名，尚未有「多日排名快照儲存」的串接程式碼
-  - **尚無「每日自動組裝真實資料並產生 report.json」的整合腳本**：Phase 0～3 各自的模組（FinMind 抓資料、策略引擎排名、預測模組、report_builder）都已完成且各自測試通過，但還沒有一支腳本把它們串在一起、定時跑、寫進 `reports/`。這支整合腳本（暫定 `scripts/daily_pipeline.py`）預計在 Phase 4（Dashboard 需要真實 report.json 可讀）或 Phase 5（Email 同樣需要）之前必須補上，屆時 T3-2／T3-4 的 Gate 才能用真實連續 5 個交易日資料重新驗證一次，取代目前這輪用合成測試資料做的驗證
-  - `watched_sectors`（關注類股）目前沒有獨立產生模組，需要呼叫端手動組裝後傳入 `build_report()`；使用者尚未告知想關注哪三大類股，待確認後可能需要建立對應設定檔
+  - **`reports/` 目前完全是空的**：`config/holdings.json` 是空白預設值（cash=0、無持股），第一次執行 `daily_pipeline.py` 前務必先照 `config/holdings.example.json` 的格式填入真實持股，否則產出的報告 `holdings` 會是空陣列
+  - `daily_pipeline.py` 的 `is_first_trading_day_of_month` 判斷依賴 `0050` 的日期序列做市場交易日曆，若 `0050` 抓取失敗會直接中止整批執行（`main()` 已對此情況印出錯誤訊息並回傳非 0 結束碼，不會產生半殘的報告）
+  - `config/universe.json` 是精選 30 檔，非全市場；之後想擴大選股範圍只需編輯這份 JSON，不需要改程式碼
 
 ## 6. 資料源清單與已知限制/風險
 
@@ -192,3 +211,4 @@ GitHub Actions（排程）
 - 2026-08-03：完成 Phase 1（`src/indicators.py`、`src/expr.py`、`src/strategy_engine.py`、兩份範例策略 JSON、`tests/test_indicators.py`、`tests/test_strategy_engine.py`、`.github/workflows/phase1-test.yml`）。16 項 pytest 全數通過，涵蓋 T1-2／T1-3／T1-4 自動化驗證；T1-1 的指標公式正確性以獨立手算/已知範例驗證通過，但與 TradingView/XQ 的即時比對需要真實網路資料，待有連線環境時人工核對。**Phase 1 自動化部分 Gate 通過，進入 Phase 2**。
 - 2026-08-03：完成 Phase 2（`src/predictor.py`：`predict_next_day()` 以排名分數線性趨勢外插預測、`walk_forward_backtest()` 逐日滾動回測記錄重疊率；`tests/test_predictor.py`）。純運算、不需外部資料源，7 項 pytest 於此開發環境直接驗證通過（全套累計 23/23）。`.github/workflows/phase1-test.yml` 更名為 `unit-tests.yml`，沿用同一個 workflow 涵蓋 Phase 1＋2 測試。**Phase 2 Gate 通過，進入 Phase 3**。
 - 2026-08-03：完成 Phase 3（`src/portfolio.py`、`src/rebalance.py`、`src/report_schema.py`、`src/report_builder.py`，新增 `jsonschema` 相依套件；`tests/test_portfolio.py`、`tests/test_report_builder.py`、`tests/test_rebalance.py`）。17 項 pytest 全數通過（全套累計 39/39），涵蓋 T3-1～T3-4 自動化驗證。**這輪驗證用的是測試建構的範例資料，不是真實 5 個交易日的 FinMind 資料**——因為目前還沒有把 Phase 0～3 的模組串成一支「每日整合腳本」定時產生真實 report.json，這是接下來的已知缺口，計劃在 Phase 4 建 Dashboard 前補上，屆時要用真實資料重跑一次 T3-2／T3-4 才能算完整通過 Gate。`watched_sectors` 需要的「三大關注類股」清單也還沒跟使用者確認。**Phase 3 自動化部分 Gate 通過，進入 Phase 4**。
+- 2026-08-03：使用者確認關注類股為半導體／AI／金融，並要求先補齊每日整合腳本再進 Phase 4。新增 `src/nav.py`、`src/score_history.py`、`src/sectors.py`（各自測試）、`scripts/daily_pipeline.py`（`run_pipeline()` 純函式串接所有 Phase 0～3 模組）、`tests/test_daily_pipeline.py`（合成資料驗證單次執行與連續 5 天不互污染）、`config/universe.json`／`holdings.json`／`holdings.example.json`／`watched_sectors.json`、`.github/workflows/daily-pipeline.yml`（手動觸發＋自動 commit `reports/`）。`strategy_engine.rank_stocks()` 新增 `apply_position_limit` 參數（向後相容，Phase 1 測試不受影響）。22 項新測試全數通過（全套累計 58/58）。**`reports/` 目錄目前仍是空的**：`config/holdings.json` 是空白預設值，且這支整合腳本尚未用真實 FinMind 資料實際跑過，待使用者於 GitHub Actions 手動觸發 `daily-pipeline.yml` 或本機執行後回報結果，才能算完整驗證 T3-2／T3-4 的 Gate。

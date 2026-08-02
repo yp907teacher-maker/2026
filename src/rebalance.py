@@ -10,8 +10,46 @@
 from __future__ import annotations
 
 
+def check_rebalance(
+    today: str,
+    is_first_trading_day_of_month: bool,
+    new_cash_inflow: bool,
+    state: dict | None,
+) -> tuple[bool, str | None, dict]:
+    """單日判定，狀態（上次觸發日期／上次觸發月份）由呼叫端跨日持久化。
+
+    回傳 (是否觸發, 觸發原因, 更新後狀態)。state 為 None 視為全新開始
+    （尚未有任何觸發紀錄），供每日排程腳本第一次執行時使用。
+    """
+    state = dict(state) if state else {}
+    last_rebalance_date = state.get("last_rebalance_date")
+    last_monthly_trigger_month = state.get("last_monthly_trigger_month")
+    month = today[:7]
+
+    triggered = False
+    reason: str | None = None
+
+    if today == last_rebalance_date:
+        triggered, reason = False, None
+    elif new_cash_inflow:
+        triggered, reason = True, "new_cash_inflow"
+    elif is_first_trading_day_of_month and month != last_monthly_trigger_month:
+        triggered, reason = True, "monthly_first_trading_day"
+
+    if triggered:
+        last_rebalance_date = today
+        if is_first_trading_day_of_month:
+            last_monthly_trigger_month = month
+
+    new_state = {
+        "last_rebalance_date": last_rebalance_date,
+        "last_monthly_trigger_month": last_monthly_trigger_month,
+    }
+    return triggered, reason, new_state
+
+
 def run_rebalance_calendar(days: list[dict]) -> list[dict]:
-    """依序處理一串交易日事件，回傳每天的觸發結果。
+    """依序處理一串交易日事件，回傳每天的觸發結果（測試／回測用，非每日排程用）。
 
     days：每筆 {"date": "YYYY-MM-DD", "is_first_trading_day_of_month": bool,
     "new_cash_inflow": bool}，需已依日期由舊到新排序。
@@ -20,30 +58,15 @@ def run_rebalance_calendar(days: list[dict]) -> list[dict]:
     "new_cash_inflow" / "monthly_first_trading_day" / None。
     """
     results: list[dict] = []
-    last_rebalance_date: str | None = None
-    last_monthly_trigger_month: str | None = None
+    state: dict = {}
 
     for day in days:
-        today = day["date"]
-        month = today[:7]
-        new_cash_inflow = day["new_cash_inflow"]
-        is_first_trading_day = day["is_first_trading_day_of_month"]
-
-        triggered = False
-        reason: str | None = None
-
-        if today == last_rebalance_date:
-            triggered, reason = False, None
-        elif new_cash_inflow:
-            triggered, reason = True, "new_cash_inflow"
-        elif is_first_trading_day and month != last_monthly_trigger_month:
-            triggered, reason = True, "monthly_first_trading_day"
-
-        if triggered:
-            last_rebalance_date = today
-            if is_first_trading_day:
-                last_monthly_trigger_month = month
-
-        results.append({"date": today, "triggered": triggered, "reason": reason})
+        triggered, reason, state = check_rebalance(
+            today=day["date"],
+            is_first_trading_day_of_month=day["is_first_trading_day_of_month"],
+            new_cash_inflow=day["new_cash_inflow"],
+            state=state,
+        )
+        results.append({"date": day["date"], "triggered": triggered, "reason": reason})
 
     return results

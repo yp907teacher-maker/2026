@@ -108,6 +108,18 @@ def test_t1_4_reproducible_ranking():
     assert first_run == second_run
 
 
+def test_apply_position_limit_false_returns_all_scored_stocks():
+    strategy = load_strategy("strategy_momentum.json")
+    universe = build_universe()  # 4 檔，皆能通過 momentum 策略的 filters（UP_STRONG/UP_WEAK/FLAT）
+
+    limited = rank_stocks(universe, strategy)
+    unlimited = rank_stocks(universe, strategy, apply_position_limit=False)
+
+    assert len(unlimited) >= len(limited)
+    assert strategy["portfolio"]["max_positions"] == 10  # 目前候選數本就 < 10，兩者應相同
+    assert [row["stock_id"] for row in unlimited] == [row["stock_id"] for row in limited]
+
+
 def test_evaluate_stock_returns_none_below_history_threshold():
     strategy = load_strategy("strategy_momentum.json")
     short_series = make_price_series(50, start=100, daily_change=0.1)

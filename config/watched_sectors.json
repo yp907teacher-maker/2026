@@ -1,0 +1,7 @@
+{
+  "sectors": [
+    { "sector": "半導體", "representative_stocks": ["2330", "2454", "3711"] },
+    { "sector": "AI", "representative_stocks": ["3231", "2382", "6669"] },
+    { "sector": "金融", "representative_stocks": ["2882", "2881", "2891"] }
+  ]
+}

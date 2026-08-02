@@ -122,9 +122,15 @@ def evaluate_stock(prices: PriceSeries, strategy: dict[str, Any]) -> dict[str, A
 
 
 def rank_stocks(
-    stock_prices: dict[str, PriceSeries], strategy: dict[str, Any]
+    stock_prices: dict[str, PriceSeries],
+    strategy: dict[str, Any],
+    apply_position_limit: bool = True,
 ) -> list[dict[str, Any]]:
-    """回傳依 ranking 因子排序的股票清單，格式穩定、同輸入必得同輸出（T1-4）。"""
+    """回傳依 ranking 因子排序的股票清單，格式穩定、同輸入必得同輸出（T1-4）。
+
+    apply_position_limit=False 時忽略 `portfolio.max_positions`，回傳所有通過
+    filters 的股票分數（供次日預測模組累積歷史分數使用，而不只是當日前十名）。
+    """
     ranking = strategy.get("ranking", {})
     factor_name = ranking["factor"]
     descending = ranking.get("order", "desc") == "desc"
@@ -144,7 +150,7 @@ def rank_stocks(
     scored.sort(key=lambda row: row["score"], reverse=descending)
 
     max_positions = strategy.get("portfolio", {}).get("max_positions")
-    if max_positions:
+    if apply_position_limit and max_positions:
         scored = scored[:max_positions]
 
     return scored

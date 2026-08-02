@@ -1,0 +1,8 @@
+{
+  "cash": 50000,
+  "holdings": [
+    { "stock_id": "2330", "name": "台積電", "shares": 100, "cost_basis": 550.0 },
+    { "stock_id": "2317", "name": "鴻海", "shares": 1000, "cost_basis": 105.5 }
+  ],
+  "new_cash_inflow_today": false
+}
