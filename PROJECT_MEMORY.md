@@ -41,7 +41,7 @@ GitHub Actions（排程）
 | `src/data_sources/finmind.py` | FinMind API 客戶端（股價/財報/PER），失敗回傳 `FetchResult(ok=False, ...)` 不拋例外 | 已建立（Phase 0） |
 | `scripts/verify_phase0.py` | Phase 0 驗證腳本，對應 T0-1～T0-4 | 已建立（Phase 0） |
 | `.github/workflows/phase0-verify.yml` | 手動觸發（workflow_dispatch）執行驗證，上傳 `phase0_snapshot.json` 快照 | 已建立（Phase 0） |
-| `requirements.txt` | 雲端（GitHub Actions）用相依套件：`requests`、`python-dotenv` | 已建立 |
+| `requirements.txt` | 雲端（GitHub Actions）用相依套件：`requests`、`python-dotenv`、`jsonschema` | 已建立 |
 | `requirements-broker.txt` | 富邦 API 本機專用相依套件說明（不含 fubon_neo，需另外用官方 wheel 安裝） | 已建立 |
 | `requirements-dev.txt` | 測試用相依套件（`pytest`），與雲端排程用的 `requirements.txt` 分開 | 已建立（Phase 1） |
 | `src/indicators.py` | SMA/EMA/RSI/MACD/ATR/布林通道/ADX 指標計算，回傳與輸入等長的 list，資料不足處為 `None` | 已建立（Phase 1） |
@@ -53,8 +53,15 @@ GitHub Actions（排程）
 | `tests/test_strategy_engine.py` | 策略引擎測試，對應 T1-2／T1-3／T1-4 | 已建立（Phase 1） |
 | `src/predictor.py` | 次日預測模組：以排名分數線性趨勢外插預測次日分數，`predict_next_day()` 單次預測、`walk_forward_backtest()` 逐日滾動回測記錄重疊率 | 已建立（Phase 2） |
 | `tests/test_predictor.py` | 預測模組測試，對應 T2-1／T2-2／T2-3 | 已建立（Phase 2） |
-| `.github/workflows/unit-tests.yml`（原 `phase1-test.yml`） | push 到 `src/`／`strategies/`／`tests/` 或手動觸發時跑 `pytest tests/`（涵蓋 Phase 1＋2 所有測試） | 已建立（Phase 1，Phase 2 沿用同一個 workflow） |
-| `reports/YYYY-MM-DD/report.json` | 每日報告 Model，歷史保留 | 規劃中，Phase 3 建立 |
+| `.github/workflows/unit-tests.yml`（原 `phase1-test.yml`） | push 到 `src/`／`strategies/`／`tests/` 或手動觸發時跑 `pytest tests/`（涵蓋 Phase 1＋2＋3 所有測試） | 已建立（Phase 1，Phase 2／3 沿用同一個 workflow） |
+| `src/portfolio.py` | 現金＋持股快照：`compute_performance_pct()` 算 1日/1週/1月報酬率、`build_holding()`／`build_portfolio_snapshot()` 算市值與佔比 | 已建立（Phase 3） |
+| `src/rebalance.py` | 再平衡觸發規則：`run_rebalance_calendar()` 依「新資金匯入」／「當月第一個交易日」觸發，逐月配額不重複觸發 | 已建立（Phase 3） |
+| `src/report_schema.py` | report.json 的 JSON Schema（`jsonschema` 套件）與 `validate_report()` | 已建立（Phase 3） |
+| `src/report_builder.py` | `build_report()` 組裝＋驗證、`save_report()`／`load_report()` 讀寫 `reports/YYYY-MM-DD/report.json` | 已建立（Phase 3） |
+| `tests/test_portfolio.py` | 對應 T3-1（績效%計算） | 已建立（Phase 3） |
+| `tests/test_report_builder.py` | 對應 T3-2（連續多日報告互不覆蓋）、T3-3（JSON Schema 驗證） | 已建立（Phase 3） |
+| `tests/test_rebalance.py` | 對應 T3-4（再平衡觸發規則、僅觸發一次） | 已建立（Phase 3） |
+| `reports/YYYY-MM-DD/report.json` | 每日報告 Model，歷史保留。**程式已完成，但目前尚無「每日自動組裝真實資料並寫入 reports/」的排程腳本**，見下方已知限制 | Model 格式與讀寫程式已完成（Phase 3），實際每日產出待整合進 GitHub Actions 排程（Phase 5／6） |
 | `dashboard/` | GitHub Pages 靜態 Dashboard（View） | 規劃中，Phase 4 建立 |
 | `fubon_client.py` | 富邦證券 API 連線與持股查詢（既有，與本專案獨立，僅本機執行） | 已建立（本專案之前） |
 
@@ -113,7 +120,21 @@ GitHub Actions（排程）
 
 ## 4. report.json 欄位定義（Model 規格）
 
-尚未實作，Phase 3 完成後於此補上完整欄位定義。預期至少包含：現金、持倉（代號/股數/成本/現價/市值/佔比/損益%）、個股績效（1日/1週/1月%）、PE、每日前十強、次日預測名單（含信心度）、關注類股表現、NAV/回撤序列。
+完整 JSON Schema 見 `src/report_schema.py`（`REPORT_SCHEMA`），`src/report_builder.build_report()` 會在組裝時自動呼叫 `validate_report()`，不合規會直接拋出 `jsonschema.exceptions.ValidationError`。頂層欄位：
+
+| 欄位 | 型別 | 說明 |
+|---|---|---|
+| `date` | string (`YYYY-MM-DD`) | 報告對應日期 |
+| `generated_at` | string | ISO 8601 產生時間 |
+| `cash` | object | `{amount, pct_of_total}` |
+| `holdings` | array | 每筆：`stock_id, name, shares, cost_basis, current_price, market_value, pct_of_portfolio, unrealized_pnl_pct, pe_ratio, performance{1d_pct,1w_pct,1m_pct}` |
+| `total_market_value` / `total_value` | number | 持股總市值／現金＋持股總資產 |
+| `top10` | array | 每筆至少 `{stock_id, score}`，來自 `strategy_engine.rank_stocks()` |
+| `predictions` | object | `{lookback, top_n, items: [{stock_id, predicted_score, confidence}]}`，來自 `predictor.predict_next_day()` |
+| `watched_sectors` | array | 每筆 `{sector, representative_stocks[], today_pct_change}` |
+| `nav_history` | array | 每筆 `{date, nav, drawdown_pct}` |
+
+`src/portfolio.py` 負責產生 `cash`／`holdings`／`total_*`（對應 T3-1 的績效%計算）；`top10`／`predictions` 分別由 Phase 1／Phase 2 的模組產生後傳入 `build_report()`；`watched_sectors`／`nav_history` 目前由呼叫端自行組裝傳入，尚無獨立產生模組。
 
 ## 5. 目前進度
 
@@ -134,12 +155,20 @@ GitHub Actions（排程）
   - T2-2（信心度需在 0～100 合理區間）：`test_t2_2_confidence_within_valid_range` 驗證所有預測 `confidence` 落在 [0,100] — PASS
   - T2-3（輸出格式符合 Model 規格、可被 Dashboard/Email 讀取）：`predict_next_day()`／`walk_forward_backtest()` 輸出皆為純 dict/list，`json.dumps()`／`json.loads()` 往返驗證通過，欄位固定為 `stock_id`/`predicted_score`/`confidence`/`basis` — PASS
   - Gate（預測模組輸出格式與回測紀錄機制驗證通過）：達成
-- **進行中**：無，等待使用者確認是否進入 Phase 3，或先人工核對 Phase 0/1 中標記待確認的即時資料比對項目
+- **已完成**：Phase 3　報告 Model 產生與歷史儲存 — **程式與自動化測試完成，17/17 pytest 通過（全套 39/39）**，2026-08-03
+  - T3-1（手動輸入持倉，1日/1週/1月績效% 與人工試算一致）：`test_t3_1_performance_matches_manual_calculation` 用等差數列收盤價，與獨立手算的報酬率公式比對一致 — PASS
+  - T3-2（連續 5 天報告不互相覆蓋）：`test_t3_2_five_consecutive_days_produce_independent_reports` 對 5 個不同日期各自 `save_report()`，5 個 `reports/YYYY-MM-DD/` 資料夾各自獨立、內容對應各自日期 — PASS。另外驗證「同一天重複儲存」正確覆蓋當天而不新增資料夾
+  - T3-3（report.json 通過 JSON Schema 驗證）：`src/report_schema.py` 定義完整 Schema，`build_report()` 組裝時自動驗證；測試涵蓋合法報告通過、缺必填欄位的報告正確拋出 `ValidationError` — PASS
+  - T3-4（新資金匯入／跨月再平衡正確觸發且僅觸發一次）：`src/rebalance.py` 的 `run_rebalance_calendar()` 通過 6 種情境測試，包含「同一天同時符合兩個觸發條件仍只觸發一次」「同月配額不因呼叫端重複標記而重複觸發」「跨月後配額正常重置」— PASS
+  - Gate（連續 5 天報告資料正確性人工抽查通過）：**自動化測試已驗證程式邏輯正確，但這是用測試建構的範例資料跑的，不是真實 5 個交易日的 FinMind 資料**，見下方已知限制
+- **進行中**：無，等待使用者確認是否進入 Phase 4，或先處理已知限制中的「每日排程整合」缺口
 - **已知限制**：
   - 開發用雲端 sandbox 連不到 `api.finmindtrade.com`，此限制會持續影響後續所有 Phase 的資料驗證，皆須在 GitHub Actions 或使用者本機執行後回報結果
   - `requirements.txt` / `requirements-broker.txt` 曾因檔案內中文註解，在 Windows 繁體中文語系（cp950）下被 `pip install -r` 讀取時噴 `UnicodeDecodeError`，已改為純英文註解修正；日後新增 requirements 檔案應避免非 ASCII 字元
   - `src/strategy_engine.py` 目前只計算「最新一筆」因子值（適合每日排名/報告用途），尚未支援對整段歷史序列逐日計算因子（回測 Phase 需要時要再擴充）
-  - `src/predictor.py` 的 `history` 輸入目前需呼叫端自行組裝成 `{stock_id: {"score": ...}}` 的每日快照序列；`strategy_engine.rank_stocks()` 目前只回傳單日排名，尚未有「多日排名快照儲存」的串接程式碼，Phase 3 整合 report.json 時需要補上這段膠水邏輯
+  - `src/predictor.py` 的 `history` 輸入目前需呼叫端自行組裝成 `{stock_id: {"score": ...}}` 的每日快照序列；`strategy_engine.rank_stocks()` 目前只回傳單日排名，尚未有「多日排名快照儲存」的串接程式碼
+  - **尚無「每日自動組裝真實資料並產生 report.json」的整合腳本**：Phase 0～3 各自的模組（FinMind 抓資料、策略引擎排名、預測模組、report_builder）都已完成且各自測試通過，但還沒有一支腳本把它們串在一起、定時跑、寫進 `reports/`。這支整合腳本（暫定 `scripts/daily_pipeline.py`）預計在 Phase 4（Dashboard 需要真實 report.json 可讀）或 Phase 5（Email 同樣需要）之前必須補上，屆時 T3-2／T3-4 的 Gate 才能用真實連續 5 個交易日資料重新驗證一次，取代目前這輪用合成測試資料做的驗證
+  - `watched_sectors`（關注類股）目前沒有獨立產生模組，需要呼叫端手動組裝後傳入 `build_report()`；使用者尚未告知想關注哪三大類股，待確認後可能需要建立對應設定檔
 
 ## 6. 資料源清單與已知限制/風險
 
@@ -162,3 +191,4 @@ GitHub Actions（排程）
 - 2026-08-03：使用者於本機執行 `scripts/verify_phase0.py`，T0-1/T0-3/T0-4 全數通過；T0-2 對 0050（ETF）回報缺少財報/PER 欄位。確認為預期行為（ETF 無公司財報），調整驗證腳本對 ETF 自動略過該項檢查而非判定失敗。同時修正 `requirements.txt`／`requirements-broker.txt` 因中文註解在 Windows cp950 語系下造成 `pip install` 的 `UnicodeDecodeError`。**Phase 0 Gate 全數通過，進入 Phase 1**。
 - 2026-08-03：完成 Phase 1（`src/indicators.py`、`src/expr.py`、`src/strategy_engine.py`、兩份範例策略 JSON、`tests/test_indicators.py`、`tests/test_strategy_engine.py`、`.github/workflows/phase1-test.yml`）。16 項 pytest 全數通過，涵蓋 T1-2／T1-3／T1-4 自動化驗證；T1-1 的指標公式正確性以獨立手算/已知範例驗證通過，但與 TradingView/XQ 的即時比對需要真實網路資料，待有連線環境時人工核對。**Phase 1 自動化部分 Gate 通過，進入 Phase 2**。
 - 2026-08-03：完成 Phase 2（`src/predictor.py`：`predict_next_day()` 以排名分數線性趨勢外插預測、`walk_forward_backtest()` 逐日滾動回測記錄重疊率；`tests/test_predictor.py`）。純運算、不需外部資料源，7 項 pytest 於此開發環境直接驗證通過（全套累計 23/23）。`.github/workflows/phase1-test.yml` 更名為 `unit-tests.yml`，沿用同一個 workflow 涵蓋 Phase 1＋2 測試。**Phase 2 Gate 通過，進入 Phase 3**。
+- 2026-08-03：完成 Phase 3（`src/portfolio.py`、`src/rebalance.py`、`src/report_schema.py`、`src/report_builder.py`，新增 `jsonschema` 相依套件；`tests/test_portfolio.py`、`tests/test_report_builder.py`、`tests/test_rebalance.py`）。17 項 pytest 全數通過（全套累計 39/39），涵蓋 T3-1～T3-4 自動化驗證。**這輪驗證用的是測試建構的範例資料，不是真實 5 個交易日的 FinMind 資料**——因為目前還沒有把 Phase 0～3 的模組串成一支「每日整合腳本」定時產生真實 report.json，這是接下來的已知缺口，計劃在 Phase 4 建 Dashboard 前補上，屆時要用真實資料重跑一次 T3-2／T3-4 才能算完整通過 Gate。`watched_sectors` 需要的「三大關注類股」清單也還沒跟使用者確認。**Phase 3 自動化部分 Gate 通過，進入 Phase 4**。
