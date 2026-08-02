@@ -13,8 +13,11 @@ sdk.stock.place_order() 送出真實委託。待確認無誤後再開通。
 
 import os
 
+from dotenv import load_dotenv
 from fubon_neo.sdk import FubonSDK, Order
 from fubon_neo.constant import BSAction, MarketType, OrderType, PriceType, TimeInForce
+
+load_dotenv()
 
 
 class FubonClient:

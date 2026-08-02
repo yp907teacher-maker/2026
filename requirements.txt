@@ -1,1 +1,2 @@
 fubon_neo
+python-dotenv
