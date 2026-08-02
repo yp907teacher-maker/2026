@@ -1,0 +1,49 @@
+{
+  "strategy": {
+    "name": "mean_reversion_rsi",
+    "market": "TW_STOCK",
+    "base_currency": "TWD"
+  },
+  "universe": {
+    "exchanges": ["TWSE", "TPEx"],
+    "min_history_days": 260
+  },
+  "indicators": [
+    { "name": "sma20", "type": "SMA", "period": 20, "source": "close" },
+    { "name": "rsi14", "type": "RSI", "period": 14, "source": "close" },
+    {
+      "name": "bb",
+      "type": "BBANDS",
+      "period": 20,
+      "std": 2.0,
+      "outputs": { "upper": "bb_upper", "middle": "bb_mid", "lower": "bb_lower" }
+    }
+  ],
+  "derived_factors": [
+    { "name": "distance_from_lower_band", "expression": "(close - bb_lower) / bb_lower" },
+    { "name": "oversold_score", "expression": "50 - rsi14" }
+  ],
+  "filters": [
+    { "expression": "rsi14 < 40" },
+    { "expression": "close < sma20" }
+  ],
+  "ranking": { "factor": "oversold_score", "order": "desc" },
+  "entry_signals": [
+    { "name": "bounce", "expression": "close > bb_lower and rsi14 > 30" }
+  ],
+  "exit_signals": [
+    { "name": "mean_reached", "expression": "close > sma20" }
+  ],
+  "portfolio": {
+    "target_position_pct": 0.10,
+    "max_positions": 10,
+    "allow_fractional_shares": false,
+    "lot_size": 1,
+    "min_order_value": 1000
+  },
+  "rebalance": {
+    "trigger": ["new_cash_inflow", "monthly_first_trading_day"],
+    "frequency": "event_driven"
+  },
+  "backtest": { "benchmark": "0050" }
+}

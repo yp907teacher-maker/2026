@@ -1,0 +1,43 @@
+{
+  "strategy": {
+    "name": "momentum_20d",
+    "market": "TW_STOCK",
+    "base_currency": "TWD"
+  },
+  "universe": {
+    "exchanges": ["TWSE", "TPEx"],
+    "min_history_days": 260
+  },
+  "indicators": [
+    { "name": "sma20", "type": "SMA", "period": 20, "source": "close" },
+    { "name": "sma60", "type": "SMA", "period": 60, "source": "close" },
+    { "name": "rsi14", "type": "RSI", "period": 14, "source": "close" }
+  ],
+  "derived_factors": [
+    { "name": "momentum_20d", "expression": "close / sma20 - 1" },
+    { "name": "trend_up", "expression": "sma20 > sma60" }
+  ],
+  "filters": [
+    { "expression": "trend_up" },
+    { "expression": "rsi14 < 80" }
+  ],
+  "ranking": { "factor": "momentum_20d", "order": "desc" },
+  "entry_signals": [
+    { "name": "breakout", "expression": "close > sma20 and rsi14 > 50" }
+  ],
+  "exit_signals": [
+    { "name": "trend_break", "expression": "close < sma20" }
+  ],
+  "portfolio": {
+    "target_position_pct": 0.10,
+    "max_positions": 10,
+    "allow_fractional_shares": false,
+    "lot_size": 1,
+    "min_order_value": 1000
+  },
+  "rebalance": {
+    "trigger": ["new_cash_inflow", "monthly_first_trading_day"],
+    "frequency": "event_driven"
+  },
+  "backtest": { "benchmark": "0050" }
+}
