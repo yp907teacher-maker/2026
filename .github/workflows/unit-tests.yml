@@ -1,4 +1,4 @@
-name: Phase 1 策略引擎測試
+name: 單元測試（策略引擎／預測模組）
 
 on:
   workflow_dispatch:
