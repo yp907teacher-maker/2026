@@ -88,20 +88,22 @@ GitHub Actions（排程）
 
 ## 5. 目前進度
 
-- **已完成**：無（Phase 0 程式已寫完，但 Gate 尚未通過，見下）
-- **進行中**：Phase 0　資料源驗證
-  - 程式已完成：`src/data_sources/finmind.py`、`scripts/verify_phase0.py`、`.github/workflows/phase0-verify.yml`
-  - **T0-4（異常處理）已在本機驗證通過**：不存在的股票代號、連線失敗兩種情境都正確回傳 `FetchResult(ok=False)` 而非拋例外中斷流程
-  - **T0-1、T0-2、T0-3 尚未通過驗證**，需要有網路可連 `api.finmindtrade.com` 的環境執行 `python scripts/verify_phase0.py`（開發用的雲端 sandbox 網路白名單擋掉了 FinMind 網域，只能在 GitHub Actions 或使用者本機執行）
-  - 待辦：於 GitHub 專案 Settings → Secrets 設定 `FINMIND_TOKEN`（非必要，但可提高請求額度上限，避免 402 額度錯誤），再手動觸發 `phase0-verify.yml` 或本機執行取得 T0-1/T0-2/T0-3 結果
-  - T0-2 的「與公開數字誤差 < 1%」需人工比對，程式僅驗證欄位可解析為數值並輸出 `phase0_snapshot.json` 快照
-- **已知限制**：Phase 0 Gate（4 項測試全數通過）尚未達成，不應開始 Phase 1
+- **已完成**：Phase 0　資料源驗證 — **Gate 已通過**（使用者於本機 Windows + Python 3.12 執行 `scripts/verify_phase0.py` 驗證，2026-08-03）
+  - T0-1（近一年日 K 線完整度）：2330／2317／0050 各 266 筆，日期連續無缺漏 — PASS
+  - T0-2（財報欄位可用性）：2330／2317 的 EPS、Revenue、IncomeAfterTaxes、EquityAttributableToOwnersOfParent、PER 均可正確取得數值；0050 為 ETF，無公司財報／PER，驗證腳本已改為對 ETF 自動略過此項而非判定失敗 — PASS
+  - T0-3（執行時間 < 5 分鐘）：實測 1.7 秒 — PASS
+  - T0-4（資料源異常處理）：不存在的股票代號、連線失敗兩種情境皆正確回傳 `FetchResult(ok=False)`，未拋例外中斷流程 — PASS
+  - 尚待人工確認：T0-2「財報數字與公開資訊誤差 < 1%」需對照公開來源核對 `phase0_snapshot.json` 數值（非阻斷性，非自動化項目）
+- **進行中**：Phase 1　指標計算與策略引擎（JSON 驅動）
+- **已知限制**：
+  - 開發用雲端 sandbox 連不到 `api.finmindtrade.com`，此限制會持續影響後續所有 Phase 的資料驗證，皆須在 GitHub Actions 或使用者本機執行後回報結果
+  - `requirements.txt` / `requirements-broker.txt` 曾因檔案內中文註解，在 Windows 繁體中文語系（cp950）下被 `pip install -r` 讀取時噴 `UnicodeDecodeError`，已改為純英文註解修正；日後新增 requirements 檔案應避免非 ASCII 字元
 
 ## 6. 資料源清單與已知限制/風險
 
 | 候選資料源 | 狀態 | 備註 |
 |---|---|---|
-| **FinMind API** | **已選定，實作完成，待跑通測試** | 見 `src/data_sources/finmind.py`。免登入可用但請求額度低，建議設定 `FINMIND_TOKEN` |
+| **FinMind API** | **已選定，Phase 0 驗證通過** | 見 `src/data_sources/finmind.py`。免登入可用但請求額度低，建議設定 `FINMIND_TOKEN` |
 | 台灣證交所 OpenAPI (TWSE OpenData) | 已否決 | 與 TPEx 格式不同，財報需另外串接，改用 FinMind 統一介面 |
 | 櫃買中心 OpenAPI (TPEx) | 已否決 | 同上 |
 | 富邦 API（`fubon_neo`/`fugle-marketdata`） | 不採用於本專案 | 需要憑證+帳密才能取得行情，不適合放進 GitHub Actions 自動排程；富邦 API 僅用於 `fubon_client.py` 本機查詢實際持股，與本專案分工 |
@@ -115,3 +117,4 @@ GitHub Actions（排程）
 
 - 2026-08-03：建立 PROJECT_MEMORY.md，記錄專案計劃書內容，尚未開始任何 Phase 實作。
 - 2026-08-03：完成 Phase 0 程式（FinMind 客戶端、驗證腳本、GitHub Actions workflow）。選定 FinMind 為資料源。T0-4 本機驗證通過；T0-1/T0-2/T0-3 因開發環境網路限制無法在此驗證，待使用者於 GitHub Actions 或本機執行後回報結果，才能判定 Phase 0 Gate 是否通過、可否進入 Phase 1。
+- 2026-08-03：使用者於本機執行 `scripts/verify_phase0.py`，T0-1/T0-3/T0-4 全數通過；T0-2 對 0050（ETF）回報缺少財報/PER 欄位。確認為預期行為（ETF 無公司財報），調整驗證腳本對 ETF 自動略過該項檢查而非判定失敗。同時修正 `requirements.txt`／`requirements-broker.txt` 因中文註解在 Windows cp950 語系下造成 `pip install` 的 `UnicodeDecodeError`。**Phase 0 Gate 全數通過，進入 Phase 1**。

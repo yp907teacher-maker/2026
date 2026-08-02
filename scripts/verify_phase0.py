@@ -25,6 +25,10 @@ from src.data_sources.finmind import FinMindClient  # noqa: E402
 
 TEST_STOCKS = ["2330", "2317", "0050"]
 
+# 0050 是 ETF（元大台灣50），沒有公司財報（EPS/營收/ROE）也沒有本益比，
+# T0-2 的財報/PER 檢查只對個股執行；ETF 仍會跑 T0-1 日 K 線檢查。
+ETF_TEST_STOCKS = {"0050"}
+
 # 台股一年約 240～250 個交易日，扣除長假與個股停牌，低於此門檻視為資料缺漏。
 MIN_TRADING_DAYS = 220
 
@@ -92,6 +96,11 @@ def run_t0_2(client: FinMindClient, checks: Checks, start: str, end: str) -> dic
     snapshot: dict = {}
 
     for stock_id in TEST_STOCKS:
+        if stock_id in ETF_TEST_STOCKS:
+            checks.record(f"T0-2 {stock_id} 財報", True, "ETF 無公司財報，不適用，略過")
+            checks.record(f"T0-2 {stock_id} PER", True, "ETF 無本益比，不適用，略過")
+            continue
+
         result = client.get_financial_statements(stock_id, start, end)
         if not result.ok:
             checks.record(f"T0-2 {stock_id} 財報", False, f"抓取失敗: {result.error}")

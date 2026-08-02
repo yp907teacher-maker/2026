@@ -1,3 +1,2 @@
-# 台股分析與通知系統的核心相依套件（跨平台，GitHub Actions 亦適用）
 requests
 python-dotenv
