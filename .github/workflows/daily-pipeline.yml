@@ -1,6 +1,6 @@
 name: 每日整合腳本（產生 report.json 並寄送 Email）
 
-# 台灣時間週一~週五 08:50（= UTC 00:50）自動執行；也可以手動觸發測試。
+# 台灣時間週一~週五 08:50、09:05（= UTC 00:50、01:05）自動執行；也可以手動觸發測試。
 on:
   workflow_dispatch:
     inputs:
@@ -10,6 +10,7 @@ on:
         default: 'strategy_momentum.json'
   schedule:
     - cron: '50 0 * * 1-5'
+    - cron: '5 1 * * 1-5'
 
 jobs:
   run-pipeline:
