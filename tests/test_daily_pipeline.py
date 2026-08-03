@@ -212,11 +212,12 @@ def test_load_nav_state_uses_local_file_without_token(monkeypatch, tmp_path):
     import scripts.daily_pipeline as pipeline
 
     monkeypatch.delenv("STATE_REPO_TOKEN", raising=False)
+    monkeypatch.setattr(pipeline, "REPORTS_DIR", tmp_path)
     fake_path = tmp_path / "nav_state.json"
     fake_path.write_text('{"baseline_total_value": 100000.0, "peak_nav": 1.0}', encoding="utf-8")
-    monkeypatch.setattr(pipeline, "NAV_STATE_PATH", fake_path)
 
-    result = pipeline._load_nav_state()
+    paths = pipeline.PortfolioPaths("default")
+    result = pipeline._load_nav_state(paths)
     assert result == {"baseline_total_value": 100000.0, "peak_nav": 1.0}
 
 
@@ -232,9 +233,31 @@ def test_load_nav_state_uses_private_repo_when_token_set(monkeypatch):
 
     monkeypatch.setattr("src.state_sync.pull_state", fake_pull_state)
 
-    result = pipeline._load_nav_state()
+    paths = pipeline.PortfolioPaths("default")
+    result = pipeline._load_nav_state(paths)
     assert result == {"baseline_total_value": 999.0, "peak_nav": 1.2}
     assert calls["args"] == (pipeline.STATE_REPO, pipeline.STATE_REPO_PATH, "fake-token")
+
+
+def test_load_nav_state_uses_separate_key_for_non_default_portfolio(monkeypatch):
+    import scripts.daily_pipeline as pipeline
+
+    monkeypatch.setenv("STATE_REPO_TOKEN", "fake-token")
+    calls = {}
+
+    def fake_pull_state(repo, path, token):
+        calls["args"] = (repo, path, token)
+        return None
+
+    monkeypatch.setattr("src.state_sync.pull_state", fake_pull_state)
+
+    paths = pipeline.PortfolioPaths("example_meanreversion")
+    pipeline._load_nav_state(paths)
+    assert calls["args"] == (
+        pipeline.STATE_REPO,
+        "example_meanreversion/nav_state.json",
+        "fake-token",
+    )
 
 
 def test_save_nav_state_uses_local_file_without_token(monkeypatch, tmp_path):
@@ -243,12 +266,12 @@ def test_save_nav_state_uses_local_file_without_token(monkeypatch, tmp_path):
     import scripts.daily_pipeline as pipeline
 
     monkeypatch.delenv("STATE_REPO_TOKEN", raising=False)
-    fake_path = tmp_path / "nav_state.json"
-    monkeypatch.setattr(pipeline, "NAV_STATE_PATH", fake_path)
+    monkeypatch.setattr(pipeline, "REPORTS_DIR", tmp_path)
 
-    pipeline._save_nav_state({"baseline_total_value": 5000.0, "peak_nav": 1.1}, "2026-08-03")
+    paths = pipeline.PortfolioPaths("default")
+    pipeline._save_nav_state({"baseline_total_value": 5000.0, "peak_nav": 1.1}, "2026-08-03", paths)
 
-    assert json_module.loads(fake_path.read_text(encoding="utf-8")) == {
+    assert json_module.loads((tmp_path / "nav_state.json").read_text(encoding="utf-8")) == {
         "baseline_total_value": 5000.0,
         "peak_nav": 1.1,
     }
@@ -265,7 +288,8 @@ def test_save_nav_state_uses_private_repo_when_token_set(monkeypatch):
 
     monkeypatch.setattr("src.state_sync.push_state", fake_push_state)
 
-    pipeline._save_nav_state({"baseline_total_value": 5000.0}, "2026-08-03")
+    paths = pipeline.PortfolioPaths("default")
+    pipeline._save_nav_state({"baseline_total_value": 5000.0}, "2026-08-03", paths)
 
     repo, path, token, data, message = calls["args"]
     assert repo == pipeline.STATE_REPO

@@ -178,37 +178,71 @@ def _save_json(path: Path, data) -> None:
         json.dump(data, fh, ensure_ascii=False, indent=2)
 
 
-def _load_nav_state() -> dict | None:
+class PortfolioPaths:
+    """單一追蹤組合的檔案路徑。`default` 組合刻意沿用既有的扁平路徑（不加組合
+    ID 子目錄），確保這次 Phase 6 改動不影響已經在 GitHub Actions 上跑的正式
+    排程；其他組合則各自獨立在 `{portfolio_id}/` 子目錄底下，互不干擾（T6-1）。
+    """
+
+    def __init__(self, portfolio_id: str):
+        self.portfolio_id = portfolio_id
+        is_default = portfolio_id == "default"
+
+        self.reports_dir = REPORTS_DIR if is_default else REPORTS_DIR / portfolio_id
+        self.public_reports_dir = (
+            PUBLIC_REPORTS_DIR if is_default else PUBLIC_REPORTS_DIR / portfolio_id
+        )
+        self.score_history_path = self.reports_dir / "score_history.json"
+        self.nav_state_path = self.reports_dir / "nav_state.json"
+        self.rebalance_state_path = self.reports_dir / "rebalance_state.json"
+        self.benchmark_nav_state_path = self.reports_dir / "benchmark_nav_state.json"
+        self.public_index_path = self.public_reports_dir / "index.json"
+        # 私人 repo 裡的檔名；default 沿用既有的 "nav_state.json"，避免既有的
+        # 私人 repo 內容被視為另一個組合的資料而找不到。
+        self.state_repo_path = (
+            STATE_REPO_PATH if is_default else f"{portfolio_id}/{STATE_REPO_PATH}"
+        )
+
+
+def _load_nav_state(paths: PortfolioPaths) -> dict | None:
     token = os.environ.get("STATE_REPO_TOKEN")
     if token:
         from src.state_sync import pull_state
 
-        return pull_state(STATE_REPO, STATE_REPO_PATH, token)
-    return _load_json(NAV_STATE_PATH, None)
+        return pull_state(STATE_REPO, paths.state_repo_path, token)
+    return _load_json(paths.nav_state_path, None)
 
 
-def _save_nav_state(data: dict, report_date: str) -> None:
+def _save_nav_state(data: dict, report_date: str, paths: PortfolioPaths) -> None:
     token = os.environ.get("STATE_REPO_TOKEN")
     if token:
         from src.state_sync import push_state
 
-        push_state(STATE_REPO, STATE_REPO_PATH, token, data, message=f"chore: update nav_state {report_date}")
+        push_state(
+            STATE_REPO,
+            paths.state_repo_path,
+            token,
+            data,
+            message=f"chore: update nav_state {paths.portfolio_id} {report_date}",
+        )
     else:
-        _save_json(NAV_STATE_PATH, data)
+        _save_json(paths.nav_state_path, data)
 
 
-def _update_public_index(report_date: str) -> None:
-    """維護 reports_public/index.json：純靜態網站沒有後端可以列目錄，Dashboard
+def _update_public_index(report_date: str, public_index_path: Path) -> None:
+    """維護 {組合}/index.json：純靜態網站沒有後端可以列目錄，Dashboard
     要知道有哪些日期可選（T4-2），得靠這個索引檔。"""
-    dates = _load_json(PUBLIC_INDEX_PATH, [])
+    dates = _load_json(public_index_path, [])
     if report_date not in dates:
         dates.append(report_date)
     dates.sort()
-    _save_json(PUBLIC_INDEX_PATH, dates)
+    _save_json(public_index_path, dates)
 
 
-def _save_warnings(report_date: str, failed_stock_ids: list[str], holding_ids: list[str]) -> None:
-    """把資料抓取失敗的股票整理成人類看得懂的訊息，寫進 reports/{date}/warnings.json，
+def _save_warnings(
+    report_date: str, failed_stock_ids: list[str], holding_ids: list[str], reports_dir: Path
+) -> None:
+    """把資料抓取失敗的股票整理成人類看得懂的訊息，寫進 {組合}/{date}/warnings.json，
     供 send_email.py 讀取後在 Email 頂端顯示「資料不完整」提醒（對應 T5-4）。
     沒有任何失敗時不建立檔案（維持乾淨，也讓 load_warnings() 自然回傳空清單）。
     """
@@ -223,7 +257,7 @@ def _save_warnings(report_date: str, failed_stock_ids: list[str], holding_ids: l
         else:
             warnings.append(f"{stock_id} 資料抓取失敗，未列入今日排名/預測")
 
-    path = REPORTS_DIR / report_date / "warnings.json"
+    path = reports_dir / report_date / "warnings.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", encoding="utf-8") as fh:
         json.dump(warnings, fh, ensure_ascii=False, indent=2)
@@ -268,27 +302,165 @@ def _fetch_pe_lookup(client, stock_ids: list[str], start_date: str, end_date: st
     return pe_lookup
 
 
+def _load_portfolio_configs(cli_strategy_override: str | None) -> list[dict]:
+    """讀 config/portfolios.json 取得追蹤組合清單；檔案不存在時退回單一
+    `default` 組合（用 config/holdings.json ＋ CLI 參數指定的策略），維持
+    Phase 6 之前的既有行為完全不變。
+    """
+    portfolios_file = CONFIG_DIR / "portfolios.json"
+    if not portfolios_file.exists():
+        return [
+            {
+                "id": "default",
+                "holdings_file": "config/holdings.json",
+                "strategy": cli_strategy_override or "strategy_momentum.json",
+            }
+        ]
+
+    config = _load_json(portfolios_file, {"portfolios": []})
+    portfolios = config.get("portfolios", [])
+    if cli_strategy_override:
+        for p in portfolios:
+            if p["id"] == "default":
+                p["strategy"] = cli_strategy_override
+    return portfolios
+
+
+def process_portfolio(
+    portfolio_cfg: dict,
+    universe_stock_ids: list[str],
+    watched_sectors_config: list[dict],
+    price_lookup: dict[str, dict],
+    pe_lookup_all: dict[str, dict[str, float]],
+    is_first_trading_day_of_month: bool,
+    report_date: str,
+    failed_stock_ids: list[str],
+) -> dict:
+    """處理單一追蹤組合的完整流程：讀設定 → 跑 run_pipeline() → 存檔。
+
+    拋出例外交由呼叫端（main()）捕捉，確保一個組合失敗不影響其他組合（T6-3）。
+    """
+    portfolio_id = portfolio_cfg["id"]
+    paths = PortfolioPaths(portfolio_id)
+
+    holdings_config = _load_json(REPO_ROOT / portfolio_cfg["holdings_file"], {"cash": 0, "holdings": []})
+    with open(STRATEGIES_DIR / portfolio_cfg["strategy"], encoding="utf-8") as fh:
+        strategy = json.load(fh)
+
+    holding_ids = [h["stock_id"] for h in holdings_config.get("holdings", [])]
+    pe_lookup = pe_lookup_all.get(portfolio_id, {})
+
+    previous_report = None
+    existing_report_dates = (
+        sorted(p.name for p in paths.public_reports_dir.iterdir() if p.is_dir() and p.name < report_date)
+        if paths.public_reports_dir.exists()
+        else []
+    )
+    if existing_report_dates:
+        from src.report_builder import load_public_report
+
+        previous_report = load_public_report(existing_report_dates[-1], base_dir=paths.public_reports_dir)
+
+    score_history = _load_json(paths.score_history_path, [])
+    nav_state = _load_nav_state(paths)
+    rebalance_state = _load_json(paths.rebalance_state_path, None)
+    benchmark_nav_state = _load_json(paths.benchmark_nav_state_path, None)
+
+    result = run_pipeline(
+        report_date=report_date,
+        is_first_trading_day_of_month=is_first_trading_day_of_month,
+        universe_stock_ids=universe_stock_ids,
+        holdings_config=holdings_config,
+        watched_sectors_config=watched_sectors_config,
+        strategy=strategy,
+        price_lookup=price_lookup,
+        pe_lookup=pe_lookup,
+        previous_report=previous_report,
+        score_history=score_history,
+        nav_state=nav_state,
+        rebalance_state=rebalance_state,
+        benchmark_nav_state=benchmark_nav_state,
+    )
+
+    save_report(result["report"], base_dir=paths.reports_dir)
+    save_public_report(result["report"], base_dir=paths.public_reports_dir)
+    save_score_history(result["score_history"], paths.score_history_path)
+    _save_nav_state(result["nav_state"], report_date, paths)
+    _save_json(paths.rebalance_state_path, result["rebalance_state"])
+    _save_json(paths.benchmark_nav_state_path, result["benchmark_nav_state"])
+    _update_public_index(report_date, paths.public_index_path)
+    _save_warnings(report_date, failed_stock_ids, holding_ids, paths.reports_dir)
+
+    return result
+
+
+def run_portfolios(
+    portfolio_configs: list[dict],
+    universe_stock_ids: list[str],
+    watched_sectors_config: list[dict],
+    price_lookup: dict[str, dict],
+    pe_lookup_all: dict[str, dict[str, float]],
+    is_first_trading_day_of_month: bool,
+    report_date: str,
+    failed_stock_ids: list[str],
+) -> tuple[list[str], list[str]]:
+    """依序處理所有追蹤組合，單一組合拋例外只會被記錄、跳過，不影響其餘組合
+    （T6-3：錯誤隔離）。回傳 (成功的組合 id 清單, 失敗的組合 id 清單)。
+    """
+    succeeded: list[str] = []
+    failed: list[str] = []
+
+    for portfolio_cfg in portfolio_configs:
+        portfolio_id = portfolio_cfg["id"]
+        try:
+            result = process_portfolio(
+                portfolio_cfg=portfolio_cfg,
+                universe_stock_ids=universe_stock_ids,
+                watched_sectors_config=watched_sectors_config,
+                price_lookup=price_lookup,
+                pe_lookup_all=pe_lookup_all,
+                is_first_trading_day_of_month=is_first_trading_day_of_month,
+                report_date=report_date,
+                failed_stock_ids=failed_stock_ids,
+            )
+        except Exception as exc:  # noqa: BLE001 - 單一組合失敗不能讓其他組合連帶失敗
+            print(f"[error] 組合「{portfolio_id}」執行失敗，跳過（不影響其他組合）：{exc!r}")
+            failed.append(portfolio_id)
+            continue
+
+        succeeded.append(portfolio_id)
+        paths = PortfolioPaths(portfolio_id)
+        print(f"[ok] 組合「{portfolio_id}」完整版已產生：{paths.reports_dir}/{report_date}/report.json")
+        print(f"[ok] 組合「{portfolio_id}」公開版已產生：{paths.public_reports_dir}/{report_date}/report.json")
+        print(f"[ok] 組合「{portfolio_id}」再平衡：{result['report']['rebalance']}")
+
+    return succeeded, failed
+
+
 def main() -> int:
     from datetime import date, timedelta
 
     from src.data_sources.finmind import FinMindClient
 
     universe_config = _load_json(CONFIG_DIR / "universe.json", {"stock_ids": []})
-    holdings_config = _load_json(CONFIG_DIR / "holdings.json", {"cash": 0, "holdings": []})
     watched_sectors_config = _load_json(CONFIG_DIR / "watched_sectors.json", {"sectors": []})
+    sectors_list = watched_sectors_config.get("sectors", [])
 
-    strategy_name = sys.argv[1] if len(sys.argv) > 1 else "strategy_momentum.json"
-    with open(STRATEGIES_DIR / strategy_name, encoding="utf-8") as fh:
-        strategy = json.load(fh)
+    cli_strategy_override = sys.argv[1] if len(sys.argv) > 1 else None
+    portfolio_configs = _load_portfolio_configs(cli_strategy_override)
 
     universe_stock_ids = universe_config["stock_ids"]
-    holding_ids = [h["stock_id"] for h in holdings_config.get("holdings", [])]
-    sector_ids = [
-        sid
-        for sector in watched_sectors_config.get("sectors", [])
-        for sid in sector["representative_stocks"]
-    ]
-    all_stock_ids = sorted(set(universe_stock_ids) | set(holding_ids) | set(sector_ids))
+    sector_ids = [sid for sector in sectors_list for sid in sector["representative_stocks"]]
+
+    # 每個組合各自的持股，先讀出來湊成一次性抓取的股票清單，避免對同一檔股票
+    # 重複打 FinMind API（多組合共用同一批行情資料，只有持股/策略不同）。
+    holdings_by_portfolio: dict[str, list[str]] = {}
+    for p in portfolio_configs:
+        cfg = _load_json(REPO_ROOT / p["holdings_file"], {"holdings": []})
+        holdings_by_portfolio[p["id"]] = [h["stock_id"] for h in cfg.get("holdings", [])]
+
+    all_holding_ids = sorted({sid for ids in holdings_by_portfolio.values() for sid in ids})
+    all_stock_ids = sorted(set(universe_stock_ids) | set(all_holding_ids) | set(sector_ids))
 
     end_date = date.today().isoformat()
     start_date = (date.today() - timedelta(days=400)).isoformat()
@@ -297,7 +469,10 @@ def main() -> int:
     price_lookup, dates_by_stock, failed_stock_ids = _fetch_price_lookup(
         client, all_stock_ids, start_date, end_date
     )
-    pe_lookup = _fetch_pe_lookup(client, holding_ids, start_date, end_date)
+
+    pe_lookup_all: dict[str, dict[str, float]] = {}
+    for portfolio_id, holding_ids in holdings_by_portfolio.items():
+        pe_lookup_all[portfolio_id] = _fetch_pe_lookup(client, holding_ids, start_date, end_date)
 
     if "0050" not in dates_by_stock:
         print("[error] 無法取得 0050 的交易日曆（benchmark 股票抓取失敗），中止本次執行")
@@ -309,52 +484,22 @@ def main() -> int:
         len(calendar_dates) >= 2 and calendar_dates[-1][:7] != calendar_dates[-2][:7]
     )
 
-    # nav_history／benchmark_nav_history 只是相對比值，不含真實金額，所以從會
-    # commit 的公開版報告讀「上一天」就夠了——這個目錄在 GitHub Actions 的全新
-    # checkout 裡也一定存在（因為進了 git），不像完整版 reports/ 只在本機累積。
-    previous_report = None
-    existing_report_dates = sorted(
-        p.name for p in PUBLIC_REPORTS_DIR.iterdir() if p.is_dir() and p.name < report_date
-    ) if PUBLIC_REPORTS_DIR.exists() else []
-    if existing_report_dates:
-        from src.report_builder import load_public_report
-
-        previous_report = load_public_report(existing_report_dates[-1], base_dir=PUBLIC_REPORTS_DIR)
-
-    score_history = _load_json(SCORE_HISTORY_PATH, [])
-    nav_state = _load_nav_state()
-    rebalance_state = _load_json(REBALANCE_STATE_PATH, None)
-    benchmark_nav_state = _load_json(BENCHMARK_NAV_STATE_PATH, None)
-
-    result = run_pipeline(
-        report_date=report_date,
-        is_first_trading_day_of_month=is_first_trading_day_of_month,
+    succeeded, failed = run_portfolios(
+        portfolio_configs=portfolio_configs,
         universe_stock_ids=universe_stock_ids,
-        holdings_config=holdings_config,
-        watched_sectors_config=watched_sectors_config.get("sectors", []),
-        strategy=strategy,
+        watched_sectors_config=sectors_list,
         price_lookup=price_lookup,
-        pe_lookup=pe_lookup,
-        previous_report=previous_report,
-        score_history=score_history,
-        nav_state=nav_state,
-        rebalance_state=rebalance_state,
-        benchmark_nav_state=benchmark_nav_state,
+        pe_lookup_all=pe_lookup_all,
+        is_first_trading_day_of_month=is_first_trading_day_of_month,
+        report_date=report_date,
+        failed_stock_ids=failed_stock_ids,
     )
 
-    save_report(result["report"], base_dir=REPORTS_DIR)
-    save_public_report(result["report"], base_dir=PUBLIC_REPORTS_DIR)
-    save_score_history(result["score_history"], SCORE_HISTORY_PATH)
-    _save_nav_state(result["nav_state"], report_date)
-    _save_json(REBALANCE_STATE_PATH, result["rebalance_state"])
-    _save_json(BENCHMARK_NAV_STATE_PATH, result["benchmark_nav_state"])
-    _update_public_index(report_date)
-    _save_warnings(report_date, failed_stock_ids, holding_ids)
+    print(f"\n共 {len(portfolio_configs)} 個組合，成功 {len(succeeded)} 個，失敗 {len(failed)} 個")
+    if failed:
+        print(f"失敗的組合：{', '.join(failed)}")
 
-    print(f"完整版（含真實金額，不進 git）已產生：reports/{report_date}/report.json")
-    print(f"公開版（去敏感化，會 commit）已產生：reports_public/{report_date}/report.json")
-    print(f"再平衡：{result['report']['rebalance']}")
-    return 0
+    return 0 if succeeded else 1
 
 
 if __name__ == "__main__":

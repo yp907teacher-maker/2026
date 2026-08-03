@@ -1,0 +1,8 @@
+{
+  "_comment": "這是 Phase 6 多組合機制的示範資料（假持股，不是真實部位），用來驗證多組合系統運作正常。想移除這個組合，把 config/portfolios.json 裡對應的項目刪掉即可。",
+  "cash": 20000,
+  "holdings": [
+    { "stock_id": "2317", "name": "鴻海", "shares": 100, "cost_basis": 200.0 }
+  ],
+  "new_cash_inflow_today": false
+}

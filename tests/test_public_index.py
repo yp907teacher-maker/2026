@@ -22,18 +22,18 @@ def tmp_index(monkeypatch):
 
 
 def test_first_call_creates_index_with_one_date(tmp_index):
-    pipeline._update_public_index("2026-08-03")
+    pipeline._update_public_index("2026-08-03", tmp_index)
     assert pipeline._load_json(tmp_index, None) == ["2026-08-03"]
 
 
 def test_repeated_dates_do_not_duplicate(tmp_index):
-    pipeline._update_public_index("2026-08-03")
-    pipeline._update_public_index("2026-08-03")
+    pipeline._update_public_index("2026-08-03", tmp_index)
+    pipeline._update_public_index("2026-08-03", tmp_index)
     assert pipeline._load_json(tmp_index, None) == ["2026-08-03"]
 
 
 def test_index_stays_sorted_regardless_of_call_order(tmp_index):
-    pipeline._update_public_index("2026-08-05")
-    pipeline._update_public_index("2026-08-03")
-    pipeline._update_public_index("2026-08-04")
+    pipeline._update_public_index("2026-08-05", tmp_index)
+    pipeline._update_public_index("2026-08-03", tmp_index)
+    pipeline._update_public_index("2026-08-04", tmp_index)
     assert pipeline._load_json(tmp_index, None) == ["2026-08-03", "2026-08-04", "2026-08-05"]

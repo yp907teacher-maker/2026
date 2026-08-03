@@ -1,0 +1,7 @@
+{
+  "_comment": "多組合設定。default 是你真實的持股（沿用既有路徑，行為不變）。example_meanreversion 是 Phase 6 用來驗證多組合機制的示範組合（假資料，非真實持股），可以隨時刪掉這個項目移除。",
+  "portfolios": [
+    { "id": "default", "holdings_file": "config/holdings.json", "strategy": "strategy_momentum.json" },
+    { "id": "example_meanreversion", "holdings_file": "config/holdings_example_meanreversion.json", "strategy": "strategy_meanreversion.json" }
+  ]
+}

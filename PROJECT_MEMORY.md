@@ -98,6 +98,10 @@ GitHub Actions（排程）
 | `reports/nav_state.json`／`reports/rebalance_state.json` | NAV 基準值與再平衡跨日狀態，含絕對金額，**不進 git**；因此 GitHub Actions 之間無法累積（見 1.1 節末段的未解限制） | 本機已產生，`config/holdings.json` 已補上真實 `cash`，NAV／總資產已準確 |
 | `reports/benchmark_nav_state.json` | 大盤基準（預設 0050）股價比值的跨日狀態，**不含私人資料，會 commit** | 已建立（Phase 4），供 `benchmark_nav_history` 逐日累積 |
 | `reports_public/index.json` | 有哪些日期已產生報告的索引，純靜態 Dashboard 沒有後端可以列目錄，靠這個檔案讓歷史日期選單知道有哪些選項（對應 T4-2） | 已建立（Phase 4），`daily_pipeline.py` 每次執行自動更新 |
+| `config/portfolios.json` | 多組合設定清單（`id`／`holdings_file`／`strategy`）。無此檔時系統退回單一 `default` 組合的舊行為 | 已建立（Phase 6） |
+| `config/holdings_example_meanreversion.json` | Phase 6 示範組合的假持股資料，用來驗證多組合機制，可隨時從 `portfolios.json` 移除 | 已建立（Phase 6） |
+| `PortfolioPaths`（`scripts/daily_pipeline.py`） | 依組合 ID 決定報告/狀態檔路徑；`default` 組合路徑與舊版完全相同（零風險相容），其他組合路徑多一層子目錄 | 已建立（Phase 6） |
+| `tests/test_multi_portfolio.py` | 對應 T6-1～T6-4：組合互不干擾、換策略後排名改變、錯誤隔離、端到端整合 | 已建立（Phase 6），9/9 通過 |
 | `dashboard/index.html`／`app.js`／`style.css` | GitHub Pages 靜態 Dashboard（View）：現金水位%、持股清單（佔比/損益%/績效%/PE，**不顯示股數/成本/市值**）、前十強、預測名單、關注類股、NAV 走勢圖（可勾選疊加大盤 0050） | 已建立（Phase 4），已用 headless Chromium 本機驗證：資料正確渲染、切換日期正確更新、手機寬度（390px）無橫向溢出 |
 | `dashboard/vendor/chart.umd.min.js` | Chart.js 4.5.1 UMD build，**打包進 repo 本機提供，不用外部 CDN**（此開發環境的網路白名單擋掉 jsdelivr 等 CDN 網域，且自架更穩定、不受任何 CDN 政策影響） | 已建立（Phase 4） |
 | `fubon_client.py` | 富邦證券 API 連線與持股查詢（既有，與本專案獨立，僅本機執行） | 已建立（本專案之前） |
@@ -250,7 +254,21 @@ GitHub Actions（排程）
     2. 設定 `SMTP_HOST`／`SMTP_PORT`／`SMTP_USER`／`SMTP_PASS`／`EMAIL_TO` 這幾個 Secrets 才能讓排程真的寄信（Gmail 需要「應用程式密碼」）
     3. 想讓排程也能同步到真實持股，需要設定 `HOLDINGS_JSON` Secret（Phase 3 末已有的機制）
     4. 三組 Secrets 都設定好後，`daily-pipeline.yml` 就會在台灣時間週一~五 08:50 自動執行「抓資料→算報告→寄 Email→commit 公開版」全流程，NAV 也會正確累積不會每次重來
-- **進行中**：無，等待使用者設定上述 Secrets 並觀察排程第一次自動執行的結果
+- **已完成**：Phase 6　多組合支援 — 2026-08-03，使用者「繼續下一步」→ 選擇「Phase 6：多組合支援」→ 資料遷移策略選擇「就建範例組合，不動現有資料」
+  - `scripts/daily_pipeline.py` 新增 `PortfolioPaths` 類別：依 `portfolio_id` 決定 `reports/`、`reports_public/`、狀態檔（nav/rebalance/benchmark）與私人 state repo 路徑；**`"default"` 組合的路徑與 Phase 0～5 完全相同（扁平路徑，不加子目錄）**，其他組合路徑會多一層 `reports/{portfolio_id}/`、`reports_public/{portfolio_id}/`，state repo 路徑多一層 `{portfolio_id}/`
+  - `_load_nav_state()`／`_save_nav_state()`／`_update_public_index()`／`_save_warnings()` 改為吃 `PortfolioPaths`／明確路徑參數，不再依賴模組層級常數硬編路徑
+  - 新增 `_load_portfolio_configs()`：讀 `config/portfolios.json`；若檔案不存在，回傳只含 `"default"` 一組的設定（維持沒有這份設定檔時的舊行為），CLI 的 `--strategy` 覆蓋只作用在 `"default"` 這組
+  - 新增 `process_portfolio()`（單一組合的完整流程：讀持股/策略檔→建路徑→讀狀態→跑 `run_pipeline()`→存全部輸出）與 `run_portfolios()`（迴圈跑全部組合，用 try/except 隔離錯誤，回傳成功／失敗的組合 ID 清單，對應 T6-3）
+  - `main()` 改寫：先讀所有組合設定，彙整全部組合持股的聯集只呼叫一次 FinMind（省額度），分別算各組合的 PE lookup，再呼叫 `run_portfolios()`
+  - `config/portfolios.json`：定義 `default`（真實持股，沿用舊路徑）＋ `example_meanreversion`（示範組合，假資料，用來驗證多組合機制）兩組
+  - `config/holdings_example_meanreversion.json`：示範組合的假持股資料（100 股鴻海 2317，成本 200），檔案內註明「假持股，不是真實部位」，想移除只需把 `portfolios.json` 裡對應項目刪掉
+  - `tests/test_multi_portfolio.py`：9 項新測試，涵蓋 T6-1（兩組合互不干擾，含公開版報告與索引各自獨立）、T6-2（同一組合換策略後次日排名改變且新舊報告都保留不覆蓋）、T6-3（一個組合設定錯誤/檔案不存在時只有該組合失敗，其餘組合正常產出報告）、T6-4（端到端：`default` 組合單獨執行仍走完整流程，Dashboard 讀公開版拿不到金額、Email 讀完整版金額正確）、`PortfolioPaths` 與 `_load_portfolio_configs()` 的單元測試 — 9/9 全數通過
+  - `tests/test_daily_pipeline.py`：既有的 4 項 nav_state 測試改用新的 `PortfolioPaths("default")` 簽名呼叫，新增 `test_load_nav_state_uses_separate_key_for_non_default_portfolio` 驗證非 default 組合會用獨立的 state repo 路徑存取
+  - `tests/test_public_index.py`：既有 3 項測試改為明確傳入 `public_index_path` 參數（因為 `_update_public_index()` 簽名改變而需要同步更新，非新增邏輯）
+  - 全套測試 111/111 通過
+  - **範圍刻意縮小**：本 Phase 只做後端（報告產生、狀態隔離、錯誤隔離），**Dashboard 尚未支援切換/顯示多組合**（`dashboard/app.js` 仍只讀扁平路徑的單一組合資料），對應計劃書 T6-1～T6-4 本身就是後端驗證項目，不含 UI
+  - **重要**：`config/portfolios.json` 一旦推上分支，排程（`daily-pipeline.yml`）會真的開始執行 `example_meanreversion` 這個示範組合並產生報告/寄信內容，不是只在測試裡跑；示範組合驗證完畢後，使用者可以決定要保留（當作系統的持續示範/健檢用途）或刪除
+- **進行中**：無，等待使用者確認是否保留 `example_meanreversion` 示範組合，以及設定 Phase 5 尚待的 Secrets 並觀察排程自動執行結果
 - **已知限制**：
   - 開發用雲端 sandbox 連不到 `api.finmindtrade.com`，此限制會持續影響後續所有 Phase 的資料驗證，皆須在 GitHub Actions 或使用者本機執行後回報結果
   - `requirements.txt` / `requirements-broker.txt` 曾因檔案內中文註解，在 Windows 繁體中文語系（cp950）下被 `pip install -r` 讀取時噴 `UnicodeDecodeError`，已改為純英文註解修正；日後新增 requirements 檔案應避免非 ASCII 字元
@@ -294,3 +312,5 @@ GitHub Actions（排程）
 - 2026-08-03：使用者的富邦 API 權限開通，貼出 `sdk.accounting.inventories()` 的真實回應。新增 `scripts/sync_holdings_from_fubon.py` 自動同步股數（成本價仍手動維護，這個 API 端點沒有成本欄位）。`.gitignore` 修正：`reports/rebalance_state.json` 其實不含金額，先前誤排除，改回追蹤。
 - 2026-08-03：使用者反應第一次執行同步腳本把帳戶裡全部 244 檔（含之前濾掉的 222 檔零股）都加進 `holdings.json`。改成預設只更新既有清單的股數，新股票需要明確加 `--include-new` 才會加入，避免同步腳本擅自擴大追蹤範圍。重新用 `convert_holdings_csv.py` 產生回 22 檔版本供使用者覆蓋。
 - 2026-08-03：完成 Phase 5（Email 通知）與 NAV 跨環境持久化。新增 `src/email_report.py`／`scripts/send_email.py`（讀完整版 report 寄 HTML Email）、`daily_pipeline.py` 的 `_save_warnings()`（T5-4 資料不完整提醒）。使用者選擇「真正解決」NAV 基準值無法跨 GitHub Actions 執行保留的問題：建立私人 repo `2026-private-state`，新增 `src/state_sync.py` 透過 GitHub Contents API 讀寫，`daily_pipeline.py` 依 `STATE_REPO_TOKEN` 環境變數是否存在自動切換本機檔案／私人 repo。同時發現 `nav_history`／`benchmark_nav_history` 本身不含金額，不需要私人 repo，直接從已 commit 的 `reports_public/` 讀取前一天資料即可接續。`daily-pipeline.yml` 加上 cron 排程（台灣時間週一~五 08:50，使用者指定）與寄信步驟。全套測試 101/101 通過。**尚待使用者操作**：建立 `STATE_REPO_TOKEN`／`SMTP_*`／`EMAIL_TO` 這些 Secrets，排程才能真正自動運作。
+- 2026-08-03：使用者追加需求「9:05 也寄一封」當備援（因為 9 點開盤），`daily-pipeline.yml` 的 `schedule` 新增第二筆 cron（台灣時間 09:05，`5 1 * * 1-5`）。
+- 2026-08-03：使用者「繼續下一步」選擇 **Phase 6：多組合支援**，資料遷移策略選擇「就建範例組合，不動現有資料」。新增 `PortfolioPaths` 類別（`default` 組合路徑與舊版位元對位相同，其他組合路徑加子目錄）、`_load_portfolio_configs()`／`process_portfolio()`／`run_portfolios()`，`main()` 改寫為多組合迴圈（聯集持股只呼叫一次 FinMind）。新增 `config/portfolios.json`（`default` ＋ 示範組合 `example_meanreversion`）、`config/holdings_example_meanreversion.json`（假資料）。新增 `tests/test_multi_portfolio.py` 9 項測試（T6-1～T6-4），既有 `tests/test_daily_pipeline.py`／`tests/test_public_index.py` 因函式簽名改變（路徑改為顯式參數）同步更新呼叫方式。全套測試 111/111 通過。**本 Phase 只做後端，Dashboard 尚未支援多組合切換／顯示**；`config/portfolios.json` 推上分支後排程會真的開始產生 `example_meanreversion` 示範組合的報告與信件內容，驗證完畢後由使用者決定保留或刪除。
