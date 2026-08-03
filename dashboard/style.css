@@ -117,8 +117,9 @@ th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--lin
 th { color: var(--muted); font-weight: 600; background: var(--panel2); position: sticky; top: 0; }
 tr:hover td { background: var(--panel2); }
 
-.pct-pos { color: var(--accent2); }
-.pct-neg { color: var(--danger); }
+/* 台股慣例：紅漲、綠跌，與歐美相反 */
+.pct-pos { color: var(--danger); }
+.pct-neg { color: var(--accent2); }
 
 .rank-list { margin: 0; padding-left: 22px; font-size: 14px; }
 .rank-list li { margin: 6px 0; }
