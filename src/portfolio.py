@@ -32,17 +32,23 @@ def build_holding(
     stock_id: str,
     name: str,
     shares: float,
-    cost_basis: float,
+    cost_basis: float | None,
     closes: list[float],
     pe_ratio: float | None = None,
 ) -> dict:
-    """組裝單一持股欄位。closes 需為該股票的收盤價序列（舊到新），最後一筆為現價。"""
+    """組裝單一持股欄位。closes 需為該股票的收盤價序列（舊到新），最後一筆為現價。
+
+    cost_basis 可以是 None（例如剛從富邦 API 同步到新股票，還沒補成本價），
+    此時不計算損益%，而不是拋例外中斷整批持股組裝。
+    """
     if not closes:
         raise ValueError(f"{stock_id} 缺少價格資料，無法組裝持股")
 
     current_price = closes[-1]
     market_value = shares * current_price
-    unrealized_pnl_pct = None if cost_basis == 0 else (current_price - cost_basis) / cost_basis
+    unrealized_pnl_pct = (
+        None if not cost_basis else (current_price - cost_basis) / cost_basis
+    )
 
     return {
         "stock_id": stock_id,

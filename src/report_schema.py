@@ -49,7 +49,7 @@ REPORT_SCHEMA = {
                     "stock_id": {"type": "string"},
                     "name": {"type": "string"},
                     "shares": {"type": "number"},
-                    "cost_basis": {"type": "number"},
+                    "cost_basis": {"type": ["number", "null"]},
                     "current_price": {"type": "number"},
                     "market_value": {"type": "number"},
                     "pct_of_portfolio": {"type": ["number", "null"]},
