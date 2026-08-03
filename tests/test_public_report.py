@@ -28,6 +28,7 @@ def make_sample_report() -> dict:
         predictions={"lookback": 5, "top_n": 10, "items": []},
         watched_sectors=[{"sector": "半導體", "representative_stocks": ["2330"], "today_pct_change": 0.01}],
         nav_history=[{"date": "2026-08-03", "nav": 1.0, "drawdown_pct": 0.0}],
+        benchmark_nav_history=[{"date": "2026-08-03", "nav": 1.0}],
     )
 
 

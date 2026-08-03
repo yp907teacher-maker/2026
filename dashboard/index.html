@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>台股每日分析 Dashboard</title>
+<script src="vendor/chart.umd.min.js"></script>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>台股每日分析 Dashboard</h1>
+    <div class="controls">
+      <label for="date-select">查看日期：</label>
+      <select id="date-select"></select>
+    </div>
+  </header>
+
+  <div class="disclaimer">
+    ⚠️ 本頁僅提供資訊整理、排名計算與視覺化，所有排名／分數／預測皆為量化統計結果，<b>不構成投資建議</b>，也不會自動下單交易。持股金額、股數、成本等敏感資料不會出現在這個公開頁面上，只顯示佔比與百分比。
+  </div>
+
+  <div id="loading" class="loading">載入中…</div>
+  <div id="error" class="error" hidden></div>
+
+  <div id="content" hidden>
+    <section class="grid grid-3">
+      <div class="card stat-card">
+        <h3>現金水位</h3>
+        <div id="cash-pct" class="stat-big">—</div>
+      </div>
+      <div class="card stat-card">
+        <h3>持股檔數</h3>
+        <div id="holdings-count" class="stat-big">—</div>
+      </div>
+      <div class="card stat-card">
+        <h3>今日再平衡</h3>
+        <div id="rebalance-status" class="stat-big">—</div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>持股清單</h2>
+      <div class="table-scroll">
+        <table id="holdings-table">
+          <thead>
+            <tr>
+              <th>代號</th><th>名稱</th><th>佔比</th><th>損益%</th>
+              <th>1日</th><th>1週</th><th>1月</th><th>本益比</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="grid grid-2">
+      <div class="card">
+        <h2>每日前十強</h2>
+        <ol id="top10-list" class="rank-list"></ol>
+      </div>
+      <div class="card">
+        <h2>次日預測名單</h2>
+        <ol id="predictions-list" class="rank-list"></ol>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>關注類股</h2>
+      <div id="sectors-grid" class="grid grid-3"></div>
+    </section>
+
+    <section class="card">
+      <h2>NAV 淨值走勢</h2>
+      <label class="toggle">
+        <input type="checkbox" id="benchmark-toggle" checked>
+        疊加大盤（0050）對比
+      </label>
+      <div class="chart-container">
+        <canvas id="nav-chart"></canvas>
+      </div>
+    </section>
+  </div>
+
+  <footer>
+    本頁面為量化統計結果之視覺化呈現，非最終投資建議。台股投資有風險，請自行審慎評估。
+    <br>資料來源：<a href="https://finmindtrade.com" target="_blank" rel="noopener">FinMind</a>。
+  </footer>
+
+</div>
+<script src="app.js"></script>
+</body>
+</html>

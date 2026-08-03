@@ -33,6 +33,9 @@ PUBLIC_REPORTS_DIR = REPO_ROOT / "reports_public"  # 去敏感化版，會 commi
 NAV_STATE_PATH = REPORTS_DIR / "nav_state.json"
 REBALANCE_STATE_PATH = REPORTS_DIR / "rebalance_state.json"
 SCORE_HISTORY_PATH = REPORTS_DIR / "score_history.json"
+# 大盤基準（0050）股價比值，不含私人資料，可安全 commit
+BENCHMARK_NAV_STATE_PATH = REPORTS_DIR / "benchmark_nav_state.json"
+PUBLIC_INDEX_PATH = PUBLIC_REPORTS_DIR / "index.json"
 
 PREDICTOR_LOOKBACK = 5
 PREDICTOR_TOP_N = 10
@@ -52,14 +55,19 @@ def run_pipeline(
     score_history: list[dict],
     nav_state: dict | None,
     rebalance_state: dict | None,
+    benchmark_nav_state: dict | None = None,
+    benchmark_stock_id: str = "0050",
 ) -> dict:
     """組裝當天完整的 pipeline 結果，純函式、不做任何 I/O。
 
     price_lookup：{stock_id: {"close":[...], "high":[...]?, "low":[...]?}}，
     只需含有資料的股票，缺資料的股票在下游各模組都會被優雅地排除，不拋例外。
 
-    回傳 {"report", "score_history", "nav_state", "rebalance_state"}，
-    呼叫端負責把這四樣分別寫入對應檔案。
+    benchmark_nav_history 只是大盤基準（如 0050）的股價比值，不含任何私人資料，
+    完整版與公開版兩邊都會保留，供 Dashboard NAV 曲線疊加對比（T4-3）。
+
+    回傳 {"report", "score_history", "nav_state", "rebalance_state",
+    "benchmark_nav_state"}，呼叫端負責把這些分別寫入對應檔案。
     """
     universe_prices = {
         sid: price_lookup[sid] for sid in universe_stock_ids if sid in price_lookup
@@ -103,6 +111,29 @@ def run_pipeline(
         state=rebalance_state,
     )
 
+    benchmark_price = None
+    benchmark_data = price_lookup.get(benchmark_stock_id)
+    if benchmark_data and benchmark_data.get("close"):
+        benchmark_price = benchmark_data["close"][-1]
+
+    if benchmark_price is not None:
+        benchmark_entry, new_benchmark_nav_state = compute_nav_entry(
+            report_date, benchmark_price, benchmark_nav_state
+        )
+        previous_benchmark_history = (
+            previous_report.get("benchmark_nav_history", []) if previous_report else []
+        )
+        benchmark_nav_history = append_nav_history(previous_benchmark_history, benchmark_entry)
+        benchmark_nav_history = [
+            {"date": row["date"], "nav": row["nav"]} for row in benchmark_nav_history
+        ]
+    else:
+        # benchmark_stock_id 抓取失敗時不中斷整批流程，只是這天沒有大盤對比資料
+        new_benchmark_nav_state = benchmark_nav_state or {}
+        benchmark_nav_history = (
+            previous_report.get("benchmark_nav_history", []) if previous_report else []
+        )
+
     report = build_report(
         date=report_date,
         portfolio_snapshot=portfolio_snapshot,
@@ -110,6 +141,7 @@ def run_pipeline(
         predictions=predictions,
         watched_sectors=watched_sectors,
         nav_history=nav_history,
+        benchmark_nav_history=benchmark_nav_history,
     )
     report["rebalance"] = {"triggered": triggered, "reason": reason}
 
@@ -118,6 +150,7 @@ def run_pipeline(
         "score_history": new_score_history,
         "nav_state": new_nav_state,
         "rebalance_state": new_rebalance_state,
+        "benchmark_nav_state": new_benchmark_nav_state,
     }
 
 
@@ -132,6 +165,16 @@ def _save_json(path: Path, data) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", encoding="utf-8") as fh:
         json.dump(data, fh, ensure_ascii=False, indent=2)
+
+
+def _update_public_index(report_date: str) -> None:
+    """維護 reports_public/index.json：純靜態網站沒有後端可以列目錄，Dashboard
+    要知道有哪些日期可選（T4-2），得靠這個索引檔。"""
+    dates = _load_json(PUBLIC_INDEX_PATH, [])
+    if report_date not in dates:
+        dates.append(report_date)
+    dates.sort()
+    _save_json(PUBLIC_INDEX_PATH, dates)
 
 
 def _fetch_price_lookup(client, stock_ids: list[str], start_date: str, end_date: str) -> dict:
@@ -216,6 +259,7 @@ def main() -> int:
     score_history = _load_json(SCORE_HISTORY_PATH, [])
     nav_state = _load_json(NAV_STATE_PATH, None)
     rebalance_state = _load_json(REBALANCE_STATE_PATH, None)
+    benchmark_nav_state = _load_json(BENCHMARK_NAV_STATE_PATH, None)
 
     result = run_pipeline(
         report_date=report_date,
@@ -230,6 +274,7 @@ def main() -> int:
         score_history=score_history,
         nav_state=nav_state,
         rebalance_state=rebalance_state,
+        benchmark_nav_state=benchmark_nav_state,
     )
 
     save_report(result["report"], base_dir=REPORTS_DIR)
@@ -237,6 +282,8 @@ def main() -> int:
     save_score_history(result["score_history"], SCORE_HISTORY_PATH)
     _save_json(NAV_STATE_PATH, result["nav_state"])
     _save_json(REBALANCE_STATE_PATH, result["rebalance_state"])
+    _save_json(BENCHMARK_NAV_STATE_PATH, result["benchmark_nav_state"])
+    _update_public_index(report_date)
 
     print(f"完整版（含真實金額，不進 git）已產生：reports/{report_date}/report.json")
     print(f"公開版（去敏感化，會 commit）已產生：reports_public/{report_date}/report.json")

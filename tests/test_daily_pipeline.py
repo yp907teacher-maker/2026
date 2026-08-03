@@ -157,3 +157,52 @@ def test_missing_stock_in_price_lookup_does_not_crash():
     validate_report(report)
     ai_sector = next(s for s in report["watched_sectors"] if s["sector"] == "AI")
     assert ai_sector["today_pct_change"] is not None  # 其餘兩檔代表股仍能算出平均
+
+
+def test_benchmark_nav_history_tracks_0050_independently_of_portfolio():
+    """對應 T4-3：NAV 曲線需要能疊加大盤（0050）對比，這裡驗證後端資料正確累積。"""
+    price_lookup = make_price_lookup()
+    dates = [f"2026-08-{d:02d}" for d in range(3, 6)]
+
+    benchmark_nav_state = None
+    previous_report = None
+    reports = {}
+
+    for i, date in enumerate(dates):
+        result = run_pipeline(
+            report_date=date,
+            is_first_trading_day_of_month=(i == 0),
+            previous_report=previous_report,
+            score_history=[],
+            nav_state=None,
+            rebalance_state=None,
+            benchmark_nav_state=benchmark_nav_state,
+            **base_kwargs(price_lookup),
+        )
+        reports[date] = result["report"]
+        benchmark_nav_state = result["benchmark_nav_state"]
+        previous_report = result["report"]
+
+    # benchmark 曲線第一天基準為 1.0，且會逐日累積，跟 portfolio nav_history 分開維護
+    assert reports[dates[0]]["benchmark_nav_history"][0]["nav"] == 1.0
+    assert [h["date"] for h in reports[dates[-1]]["benchmark_nav_history"]] == dates
+    # 0050 沒有任何私人資料相依，只跟自己的股價序列有關
+    assert all("drawdown_pct" not in h for h in reports[dates[-1]]["benchmark_nav_history"])
+
+
+def test_benchmark_missing_does_not_crash_pipeline():
+    price_lookup = make_price_lookup()
+    del price_lookup["0050"]  # 模擬大盤基準股抓取失敗
+
+    result = run_pipeline(
+        report_date="2026-08-03",
+        is_first_trading_day_of_month=False,
+        previous_report=None,
+        score_history=[],
+        nav_state=None,
+        rebalance_state=None,
+        **base_kwargs(price_lookup),
+    )
+    report = result["report"]
+    validate_report(report)
+    assert report["benchmark_nav_history"] == []

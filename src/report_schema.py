@@ -131,8 +131,20 @@ REPORT_SCHEMA = {
                 },
             },
         },
+        "benchmark_nav_history": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["date", "nav"],
+                "properties": {
+                    "date": {"type": "string"},
+                    "nav": {"type": "number"},
+                },
+            },
+        },
     },
 }
+REPORT_SCHEMA["required"].append("benchmark_nav_history")
 
 
 def validate_report(report: dict) -> None:
@@ -192,8 +204,10 @@ PUBLIC_REPORT_SCHEMA = {
         "predictions": REPORT_SCHEMA["properties"]["predictions"],
         "watched_sectors": REPORT_SCHEMA["properties"]["watched_sectors"],
         "nav_history": REPORT_SCHEMA["properties"]["nav_history"],
+        "benchmark_nav_history": REPORT_SCHEMA["properties"]["benchmark_nav_history"],
     },
 }
+PUBLIC_REPORT_SCHEMA["required"].append("benchmark_nav_history")
 
 _SENSITIVE_CASH_FIELDS = {"amount"}
 _SENSITIVE_HOLDING_FIELDS = {"shares", "cost_basis", "current_price", "market_value"}

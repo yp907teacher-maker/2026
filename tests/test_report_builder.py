@@ -37,6 +37,7 @@ def make_sample_report(date: str) -> dict:
             {"sector": "半導體", "representative_stocks": ["2330"], "today_pct_change": 0.012}
         ],
         nav_history=[{"date": date, "nav": 1.05, "drawdown_pct": -0.02}],
+        benchmark_nav_history=[{"date": date, "nav": 1.02}],
         generated_at=f"{date}T06:00:00+08:00",
     )
 

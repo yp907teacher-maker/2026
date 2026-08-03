@@ -29,6 +29,7 @@ def build_report(
     predictions: dict,
     watched_sectors: list[dict],
     nav_history: list[dict],
+    benchmark_nav_history: list[dict],
     generated_at: str | None = None,
 ) -> dict:
     """組裝完整版 report.json 內容（純 dict，尚未寫檔），含真實金額，僅供私人使用。"""
@@ -42,6 +43,7 @@ def build_report(
         "top10": top10,
         "predictions": predictions,
         "watched_sectors": watched_sectors,
+        "benchmark_nav_history": benchmark_nav_history,
         "nav_history": nav_history,
     }
     validate_report(report)

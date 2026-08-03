@@ -95,8 +95,11 @@ GitHub Actions（排程）
 | `reports/YYYY-MM-DD/report.json` | 每日報告 Model **完整版**（含真實金額），`.gitignore` 排除，只存在本機 | **已有第一筆真實資料**：2026-07-31，使用者本機執行 `daily_pipeline.py` 產生，22 檔持股、市值、損益% 皆已人工核對正確 |
 | `reports_public/YYYY-MM-DD/report.json` | 每日報告 Model **公開版**（去敏感化），會 commit，供公開 repo／Dashboard 讀取 | 2026-07-31 這筆已 commit 進 `claude/github-login-o83wwg` 分支（commit `b6588dc`），內容不含金額，已用 `PUBLIC_REPORT_SCHEMA` 驗證通過 |
 | `reports/score_history.json` | 排名分數多日快照（只有分數，無金額）**會 commit**，讓 GitHub Actions 之間能累積預測所需的歷史 | 已有第一筆真實資料並 commit（2026-07-31 這天的排名分數） |
-| `reports/nav_state.json`／`reports/rebalance_state.json` | NAV 基準值與再平衡跨日狀態，含絕對金額，**不進 git**；因此 GitHub Actions 之間無法累積（見 1.1 節末段的未解限制） | 本機已產生（`config/holdings.json` 目前 `cash` 仍是 0，待使用者填入真實交割戶餘額後 NAV／總資產才會完全準確） |
-| `dashboard/` | GitHub Pages 靜態 Dashboard（View） | 規劃中，Phase 4 建立 |
+| `reports/nav_state.json`／`reports/rebalance_state.json` | NAV 基準值與再平衡跨日狀態，含絕對金額，**不進 git**；因此 GitHub Actions 之間無法累積（見 1.1 節末段的未解限制） | 本機已產生，`config/holdings.json` 已補上真實 `cash`，NAV／總資產已準確 |
+| `reports/benchmark_nav_state.json` | 大盤基準（預設 0050）股價比值的跨日狀態，**不含私人資料，會 commit** | 已建立（Phase 4），供 `benchmark_nav_history` 逐日累積 |
+| `reports_public/index.json` | 有哪些日期已產生報告的索引，純靜態 Dashboard 沒有後端可以列目錄，靠這個檔案讓歷史日期選單知道有哪些選項（對應 T4-2） | 已建立（Phase 4），`daily_pipeline.py` 每次執行自動更新 |
+| `dashboard/index.html`／`app.js`／`style.css` | GitHub Pages 靜態 Dashboard（View）：現金水位%、持股清單（佔比/損益%/績效%/PE，**不顯示股數/成本/市值**）、前十強、預測名單、關注類股、NAV 走勢圖（可勾選疊加大盤 0050） | 已建立（Phase 4），已用 headless Chromium 本機驗證：資料正確渲染、切換日期正確更新、手機寬度（390px）無橫向溢出 |
+| `dashboard/vendor/chart.umd.min.js` | Chart.js 4.5.1 UMD build，**打包進 repo 本機提供，不用外部 CDN**（此開發環境的網路白名單擋掉 jsdelivr 等 CDN 網域，且自架更穩定、不受任何 CDN 政策影響） | 已建立（Phase 4） |
 | `fubon_client.py` | 富邦證券 API 連線與持股查詢（既有，與本專案獨立，僅本機執行） | 已建立（本專案之前） |
 
 ## 3. 策略 JSON Schema 說明
@@ -214,16 +217,30 @@ GitHub Actions（排程）
   - `reports/2026-07-31/report.json`（完整版）人工核對：22 檔持股、股數、成本、市值、損益% 皆正確；`cash` 目前仍是 0（使用者尚未填交割戶餘額，待補）
   - `git status` 確認只有 `reports_public/2026-07-31/report.json`、`reports/score_history.json` 兩個安全檔案被 staged，完整版與 `holdings.json` 皆未被 git 追蹤，commit `b6588dc` 推上 `claude/github-login-o83wwg`
   - **T3-2／T3-4 的 Gate 首次用真實資料跑通**（目前只有一天，跨日不互污染需之後累積更多天數觀察，但單日流程與資料正確性已確認）
-- **進行中**：無，等待使用者決定要不要補 `cash` 金額、之後想繼續 Phase 4（Dashboard）
+  - 後續使用者補上真實 `cash` 金額並重跑，`reports_public/2026-07-31/report.json` 更新後再次確認只有安全欄位、commit `b9864d0`／`f011df0` 推上
+- **已完成**：Phase 4　GitHub Pages Dashboard — 2026-08-03
+  - 新增 `benchmark_nav_history`（大盤 0050 的 NAV 比值序列，不含私人資料）到完整版與公開版 Schema；`daily_pipeline.run_pipeline()` 用 `src/nav.compute_nav_entry()` 對 0050 收盤價算出獨立於持股的 NAV 曲線，供圖表疊加對比（對應 T4-3）；0050 抓取失敗時優雅跳過、不中斷整批流程
+  - 新增 `reports_public/index.json`：純靜態網站沒有後端可以列目錄，`daily_pipeline.py` 每次執行自動把當天日期加進這個索引，Dashboard 靠它產生歷史日期選單（對應 T4-2）
+  - `dashboard/index.html`／`app.js`／`style.css`：深色／淺色自動切換、RWD 版面、現金水位%／持股清單（只顯示佔比%/損益%/績效%/PE，不顯示金額）／每日前十強／次日預測名單／關注類股／NAV 走勢圖（可勾選疊加大盤）
+  - Chart.js 4.5.1 UMD build 打包進 `dashboard/vendor/`，不依賴外部 CDN（此開發環境的網路白名單擋掉 CDN 網域；自架版本也更穩定，不受 CDN 政策/故障影響，對個人理財資料頁面而言也更少一個外部請求）
+  - 本機用 Python `http.server` + headless Chromium（Playwright）驗證：
+    - T4-1：純靜態伺服器（無任何後端邏輯）成功載入並渲染真實的 `reports_public/2026-07-31/report.json` — PASS
+    - T4-2：手動建立第二個測試日期，切換下拉選單後畫面正確對應該日資料（現金水位從 11.1% 變成測試值 50.0%）；測試用資料已清除，不會進 git — PASS
+    - T4-3：NAV 圖表資料結構已支援疊加大盤序列、checkbox 可切換顯示；**目前只有 2026-07-31 一天資料，圖表上只有單一個點，尚未能視覺化驗證多日曲線疊加效果，邏輯已備妥，待累積更多天數後可再次確認** — 部分驗證
+    - T4-4：390px（手機）寬度下 `document.body.scrollWidth` 等於 viewport 寬度，無橫向溢出，畫面正確堆疊 — PASS
+  - 全套測試 68/68 通過（新增 `tests/test_public_index.py`、`daily_pipeline` 的 benchmark 相關測試）
+  - **尚待使用者操作**：GitHub Pages 需要在 repo 的 Settings → Pages 手動設定發布來源（分支＋根目錄），且 Dashboard 假設 Pages 從 repo 根目錄發布（`dashboard/` 與 `reports_public/` 才會是同一層），這是 repo 設定變更，我不會自動去改，需要使用者自己去 GitHub 網頁設定
+- **進行中**：無，等待使用者在 GitHub 設定 Pages 發布來源並確認網頁能開啟
 - **已知限制**：
   - 開發用雲端 sandbox 連不到 `api.finmindtrade.com`，此限制會持續影響後續所有 Phase 的資料驗證，皆須在 GitHub Actions 或使用者本機執行後回報結果
   - `requirements.txt` / `requirements-broker.txt` 曾因檔案內中文註解，在 Windows 繁體中文語系（cp950）下被 `pip install -r` 讀取時噴 `UnicodeDecodeError`，已改為純英文註解修正；日後新增 requirements 檔案應避免非 ASCII 字元
   - `src/strategy_engine.py` 目前只計算「最新一筆」因子值（適合每日排名/報告用途），尚未支援對整段歷史序列逐日計算因子（回測 Phase 需要時要再擴充）
-  - `config/holdings.json` 的 `cash` 目前是 0（使用者還沒填交割戶實際餘額），`total_value`／`cash.pct_of_total` 因此還不完全準確，待使用者自行更新後重跑
   - **跨日狀態在 GitHub Actions 上無法累積**（見 1.1 節末段）：`nav_state.json`／`rebalance_state.json` 不進 git，Actions 每次執行都是全新環境，NAV 會重新從 1.0 開始、再平衡狀態重置。目前只有本機連續執行能正確累積，這個缺口尚未解決——**代表現階段建議使用者固定在同一台本機每天手動或排程執行 `daily_pipeline.py`，而不是依賴 GitHub Actions 自動排程**
   - `daily_pipeline.py` 的 `is_first_trading_day_of_month` 判斷依賴 `0050` 的日期序列做市場交易日曆，若 `0050` 抓取失敗會直接中止整批執行（`main()` 已對此情況印出錯誤訊息並回傳非 0 結束碼，不會產生半殘的報告）
   - `config/universe.json` 是精選 30 檔，非全市場；之後想擴大選股範圍只需編輯這份 JSON，不需要改程式碼
   - 使用者的實際持股共 245 檔（多為 1～2 股零股），`convert_holdings_csv.py` 預設用 1% 成本佔比門檻篩選後保留 22 檔；門檻可用 `--min-pct` 調整
+  - Dashboard 假設 GitHub Pages 從 repo **根目錄**發布（`app.js` 用相對路徑 `../reports_public/...` 抓資料）；如果之後改成從 `/docs` 或其他設定發布，路徑就要跟著調整
+  - NAV 圖表疊加大盤對比（T4-3）目前只有邏輯與單一資料點的驗證，尚未在多天真實資料上視覺確認曲線正確；等 `reports_public/` 累積更多天數後應該回頭再檢查一次
 
 ## 6. 資料源清單與已知限制/風險
 
@@ -251,3 +268,5 @@ GitHub Actions（排程）
 - 2026-08-03：使用者提供富邦匯出的「庫存」與「成交紀錄」CSV（Big5 編碼）。庫存檔沒有成本欄位，改用成交紀錄以移動平均法回推各檔剩餘股數與平均成本，寫成 `scripts/convert_holdings_csv.py`；實測 245 檔持股中依 1% 成本佔比門檻篩選後保留 22 檔較大部位。
 - 2026-08-03：使用者確認 repo 之後要改成**公開**（GitHub Pages 免費方案只支援公開 repo），因此新增完整版／公開版報告分離機制：`report_schema.build_public_report()` 去除所有絕對金額欄位、`report_builder.save_public_report()` 寫入 `reports_public/`，`.gitignore` 排除 `config/holdings.json` 與 `reports/` 下的完整版報告與狀態檔（`config/holdings.json` 已 `git rm --cached`），workflow 改為只 commit 公開版並支援用 `HOLDINGS_JSON` Secret 注入持股。新增 `tests/test_public_report.py` 5 項測試（全套 63/63）。**仍未解決**：`nav_state.json`／`rebalance_state.json` 跨日狀態無法在 GitHub Actions 執行之間保留，純雲端排程會讓 NAV 每次從 1.0 重來，見 1.1 節。
 - 2026-08-03：**第一次真實資料端到端跑通**。使用者用 `convert_holdings_csv.py` 轉出的 22 檔持股填入本機 `config/holdings.json`，執行 `py -3.12 scripts/daily_pipeline.py` 成功產生 2026-07-31 的完整版與公開版報告；完整版經人工核對持股/市值/損益% 皆正確（`cash` 待補）。確認 `git status` 只會 commit `reports_public/2026-07-31/report.json` 與 `reports/score_history.json` 兩個不含金額的安全檔案後，commit `b6588dc` 推上 `claude/github-login-o83wwg`。至此 Phase 0～3（含每日整合腳本與隱私架構）全部有真實資料驗證過，可以開始 **Phase 4：GitHub Pages Dashboard**。
+- 2026-08-03：使用者補上真實交割戶 `cash` 金額（本機 `config/holdings.json`），重跑 pipeline 並 commit `b9864d0`／合併 commit `f011df0`（與此開發環境同時推送的 `PROJECT_MEMORY.md` 更新有 push 衝突，已用 `git pull` 合併解決）。
+- 2026-08-03：完成 Phase 4。新增 `benchmark_nav_history`（大盤 0050 NAV 比值，schema／pipeline 皆已支援）、`reports_public/index.json`（歷史日期索引）、`dashboard/`（index.html/app.js/style.css，深色主題＋RWD，Chart.js 4.5.1 打包在 `dashboard/vendor/` 不依賴外部 CDN）。用 Python `http.server` + Playwright headless Chromium 本機驗證：T4-1（純靜態載入真實資料）、T4-2（切換日期正確更新）、T4-4（390px 手機寬度無橫向溢出）皆 PASS；T4-3（NAV 疊加大盤）邏輯與圖表結構已備妥，但目前只有一天真實資料、圖表只有單點，多日曲線疊加效果尚待之後累積資料後視覺確認。全套測試 68/68 通過。**尚待使用者動作**：到 GitHub repo 的 Settings → Pages 手動設定發布來源（根目錄），Dashboard 才能真正上線。
