@@ -177,15 +177,43 @@ def _update_public_index(report_date: str) -> None:
     _save_json(PUBLIC_INDEX_PATH, dates)
 
 
+def _save_warnings(report_date: str, failed_stock_ids: list[str], holding_ids: list[str]) -> None:
+    """把資料抓取失敗的股票整理成人類看得懂的訊息，寫進 reports/{date}/warnings.json，
+    供 send_email.py 讀取後在 Email 頂端顯示「資料不完整」提醒（對應 T5-4）。
+    沒有任何失敗時不建立檔案（維持乾淨，也讓 load_warnings() 自然回傳空清單）。
+    """
+    if not failed_stock_ids:
+        return
+
+    holding_id_set = set(holding_ids)
+    warnings = []
+    for stock_id in failed_stock_ids:
+        if stock_id in holding_id_set:
+            warnings.append(f"你的持股 {stock_id} 今日資料抓取失敗，報告中的市值/績效可能未更新")
+        else:
+            warnings.append(f"{stock_id} 資料抓取失敗，未列入今日排名/預測")
+
+    path = REPORTS_DIR / report_date / "warnings.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(warnings, fh, ensure_ascii=False, indent=2)
+
+
 def _fetch_price_lookup(client, stock_ids: list[str], start_date: str, end_date: str) -> dict:
-    """向 FinMind 逐檔抓日 K，失敗的股票印出錯誤並跳過，不中斷整批流程。"""
+    """向 FinMind 逐檔抓日 K，失敗的股票印出錯誤並跳過，不中斷整批流程。
+
+    回傳 (price_lookup, dates_by_stock, failed_stock_ids)；failed_stock_ids 供
+    T5-4 使用，讓 Email 明確標示「資料不完整」而不是悄悄漏掉某些股票。
+    """
     price_lookup: dict[str, dict] = {}
     dates_by_stock: dict[str, list[str]] = {}
+    failed_stock_ids: list[str] = []
 
     for stock_id in stock_ids:
         result = client.get_daily_price(stock_id, start_date, end_date)
         if not result.ok or not result.data:
             print(f"[warn] 抓取 {stock_id} 價格失敗，略過: {result.error}")
+            failed_stock_ids.append(stock_id)
             continue
 
         closes = [row["close"] for row in result.data]
@@ -196,7 +224,7 @@ def _fetch_price_lookup(client, stock_ids: list[str], start_date: str, end_date:
         price_lookup[stock_id] = {"close": closes, "high": highs, "low": lows}
         dates_by_stock[stock_id] = dates
 
-    return price_lookup, dates_by_stock
+    return price_lookup, dates_by_stock, failed_stock_ids
 
 
 def _fetch_pe_lookup(client, stock_ids: list[str], start_date: str, end_date: str) -> dict:
@@ -236,7 +264,9 @@ def main() -> int:
     start_date = (date.today() - timedelta(days=400)).isoformat()
 
     client = FinMindClient()
-    price_lookup, dates_by_stock = _fetch_price_lookup(client, all_stock_ids, start_date, end_date)
+    price_lookup, dates_by_stock, failed_stock_ids = _fetch_price_lookup(
+        client, all_stock_ids, start_date, end_date
+    )
     pe_lookup = _fetch_pe_lookup(client, holding_ids, start_date, end_date)
 
     if "0050" not in dates_by_stock:
@@ -284,6 +314,7 @@ def main() -> int:
     _save_json(REBALANCE_STATE_PATH, result["rebalance_state"])
     _save_json(BENCHMARK_NAV_STATE_PATH, result["benchmark_nav_state"])
     _update_public_index(report_date)
+    _save_warnings(report_date, failed_stock_ids, holding_ids)
 
     print(f"完整版（含真實金額，不進 git）已產生：reports/{report_date}/report.json")
     print(f"公開版（去敏感化，會 commit）已產生：reports_public/{report_date}/report.json")

@@ -9,7 +9,7 @@ phase0_snapshot.json
 config/holdings.json
 reports/*/
 reports/nav_state.json
-reports/rebalance_state.json
 !reports/.gitkeep
 !reports/score_history.json
 !reports/benchmark_nav_state.json
+!reports/rebalance_state.json
