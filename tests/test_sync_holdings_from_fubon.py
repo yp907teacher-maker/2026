@@ -61,8 +61,17 @@ def test_merge_holdings_updates_shares_but_preserves_cost_and_name():
     assert removed == []
 
 
-def test_merge_holdings_adds_new_stock_with_null_cost_basis():
+def test_merge_holdings_does_not_add_new_stock_by_default():
+    """預設不擴大追蹤範圍，帳戶裡有的其他股票不會自動塞進 holdings.json。"""
     merged, added, removed = merge_holdings([], {"2317": 15.0})
+
+    assert merged == []
+    assert added == []
+    assert removed == []
+
+
+def test_merge_holdings_adds_new_stock_with_null_cost_basis_when_opted_in():
+    merged, added, removed = merge_holdings([], {"2317": 15.0}, include_new=True)
 
     assert merged == [{"stock_id": "2317", "name": "2317", "shares": 15.0, "cost_basis": None}]
     assert added == ["2317"]
@@ -78,18 +87,37 @@ def test_merge_holdings_removes_fully_sold_stock():
     assert removed == ["2330"]
 
 
-def test_merge_holdings_handles_mixed_add_update_remove():
+def test_merge_holdings_handles_mixed_add_update_remove_when_opted_in():
     existing = [
         {"stock_id": "2330", "name": "台積電", "shares": 3.0, "cost_basis": 1700.0},
         {"stock_id": "2317", "name": "鴻海", "shares": 10.0, "cost_basis": 200.0},
     ]
     live_shares = {"2330": 4.0, "0050": 60.0}  # 2317 賣光了、0050 是新的
 
-    merged, added, removed = merge_holdings(existing, live_shares)
+    merged, added, removed = merge_holdings(existing, live_shares, include_new=True)
 
     merged_ids = {h["stock_id"] for h in merged}
     assert merged_ids == {"2330", "0050"}
     assert added == ["0050"]
+    assert removed == ["2317"]
+
+    tsmc = next(h for h in merged if h["stock_id"] == "2330")
+    assert tsmc["shares"] == 4.0
+    assert tsmc["cost_basis"] == 1700.0  # 成本沒被洗掉
+
+
+def test_merge_holdings_default_only_updates_tracked_stocks_ignores_rest():
+    existing = [
+        {"stock_id": "2330", "name": "台積電", "shares": 3.0, "cost_basis": 1700.0},
+        {"stock_id": "2317", "name": "鴻海", "shares": 10.0, "cost_basis": 200.0},
+    ]
+    live_shares = {"2330": 4.0, "0050": 60.0}  # 2317 賣光了、0050 是帳戶裡沒被追蹤的股票
+
+    merged, added, removed = merge_holdings(existing, live_shares, include_new=False)
+
+    merged_ids = {h["stock_id"] for h in merged}
+    assert merged_ids == {"2330"}  # 0050 不會被自動加入
+    assert added == []
     assert removed == ["2317"]
 
     tsmc = next(h for h in merged if h["stock_id"] == "2330")

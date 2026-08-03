@@ -38,9 +38,16 @@ def extract_share_counts(inventories: list) -> dict[str, float]:
 
 
 def merge_holdings(
-    existing_holdings: list[dict], live_shares: dict[str, float]
+    existing_holdings: list[dict],
+    live_shares: dict[str, float],
+    include_new: bool = False,
 ) -> tuple[list[dict], list[str], list[str]]:
     """回傳 (合併後的 holdings 清單, 新增的股票代號, 已出清移除的股票代號)。
+
+    預設（include_new=False）只更新既有清單裡已經有的股票的股數，**不會**把
+    帳戶裡其他沒被追蹤的股票（例如篩選門檻以下的零股）自動加進來——追蹤範圍
+    是使用者自己選的，同步腳本不該幫忙擴大。想連新股票一起加，才需要
+    include_new=True。
 
     不會覆蓋既有的 cost_basis／name，避免把你手動維護的成本價洗掉。
     """
@@ -48,16 +55,20 @@ def merge_holdings(
 
     merged = []
     added = []
-    for stock_id, shares in sorted(live_shares.items()):
-        if stock_id in existing_by_id:
+    for stock_id in sorted(existing_by_id):
+        if stock_id in live_shares:
             holding = dict(existing_by_id[stock_id])
-            holding["shares"] = shares
+            holding["shares"] = live_shares[stock_id]
             merged.append(holding)
-        else:
-            merged.append(
-                {"stock_id": stock_id, "name": stock_id, "shares": shares, "cost_basis": None}
-            )
-            added.append(stock_id)
+
+    if include_new:
+        for stock_id, shares in sorted(live_shares.items()):
+            if stock_id not in existing_by_id:
+                merged.append(
+                    {"stock_id": stock_id, "name": stock_id, "shares": shares, "cost_basis": None}
+                )
+                added.append(stock_id)
+        merged.sort(key=lambda h: h["stock_id"])
 
     removed = [sid for sid in existing_by_id if sid not in live_shares]
     return merged, added, removed
@@ -76,7 +87,17 @@ def save_config(config: dict, path: Path = CONFIG_PATH) -> None:
 
 
 def main() -> int:
+    import argparse
+
     from fubon_client import FubonClient
+
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--include-new",
+        action="store_true",
+        help="連帳戶裡目前清單沒追蹤的股票也一起加進來（成本價留空）。預設不加，只更新既有清單的股數。",
+    )
+    args = parser.parse_args()
 
     client = FubonClient()
     client.connect()
@@ -88,7 +109,9 @@ def main() -> int:
     live_shares = extract_share_counts(inventories)
     config = load_config()
 
-    merged, added, removed = merge_holdings(config.get("holdings", []), live_shares)
+    merged, added, removed = merge_holdings(
+        config.get("holdings", []), live_shares, include_new=args.include_new
+    )
     config["holdings"] = merged
     save_config(config)
 
@@ -97,6 +120,12 @@ def main() -> int:
         print(f"新增 {len(added)} 檔（成本價留空，需要你自己在 config/holdings.json 補上 cost_basis 與 name）：{', '.join(added)}")
     if removed:
         print(f"已移除 {len(removed)} 檔（目前庫存為 0）：{', '.join(removed)}")
+    if not args.include_new:
+        tracked_ids = {h["stock_id"] for h in merged}
+        untracked = sorted(set(live_shares) - tracked_ids)
+        if untracked:
+            print(f"帳戶裡還有 {len(untracked)} 檔沒被追蹤（未同步）：{', '.join(untracked)}")
+            print("想一起加入清單的話，加 --include-new 參數重跑一次。")
     print("提醒：cash（交割戶餘額）本腳本不會自動更新，仍需你自己維護。")
     return 0
 
