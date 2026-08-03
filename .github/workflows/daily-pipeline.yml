@@ -1,7 +1,6 @@
-name: 每日整合腳本（產生 report.json）
+name: 每日整合腳本（產生 report.json 並寄送 Email）
 
-# 目前僅手動觸發；等 Phase 5 做完 Email 通知後，會改成台灣時間 06:00 開盤前
-# 的排程（cron），屆時抓資料→報告→Email 會在同一次執行內完成。
+# 台灣時間週一~週五 08:50（= UTC 00:50）自動執行；也可以手動觸發測試。
 on:
   workflow_dispatch:
     inputs:
@@ -9,6 +8,8 @@ on:
         description: '要套用的策略 JSON 檔名（位於 strategies/）'
         required: false
         default: 'strategy_momentum.json'
+  schedule:
+    - cron: '50 0 * * 1-5'
 
 jobs:
   run-pipeline:
@@ -39,12 +40,26 @@ jobs:
       - name: 執行每日整合腳本
         env:
           FINMIND_TOKEN: ${{ secrets.FINMIND_TOKEN }}
+          # nav_state.json 含真實金額基準值，設定這組 token 後會改存到私人
+          # repo（yp907teacher-maker/2026-private-state），跨次執行也能正確
+          # 累積 NAV；沒設定則退回本機檔案（Actions 環境下等於每次從頭開始）。
+          STATE_REPO_TOKEN: ${{ secrets.STATE_REPO_TOKEN }}
         run: python scripts/daily_pipeline.py "${{ inputs.strategy }}"
+
+      - name: 寄送每日 Email 通知
+        if: env.SMTP_HOST != ''
+        env:
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+        run: python scripts/send_email.py
 
       - name: 提交公開版報告與非敏感狀態檔
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add reports_public/ reports/score_history.json reports/benchmark_nav_state.json
+          git add reports_public/ reports/score_history.json reports/benchmark_nav_state.json reports/rebalance_state.json
           git diff --cached --quiet && echo "沒有新的變更" || git commit -m "chore: 更新每日報告 $(date -u +%Y-%m-%d)"
           git push

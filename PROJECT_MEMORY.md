@@ -101,6 +101,9 @@ GitHub Actions（排程）
 | `dashboard/index.html`／`app.js`／`style.css` | GitHub Pages 靜態 Dashboard（View）：現金水位%、持股清單（佔比/損益%/績效%/PE，**不顯示股數/成本/市值**）、前十強、預測名單、關注類股、NAV 走勢圖（可勾選疊加大盤 0050） | 已建立（Phase 4），已用 headless Chromium 本機驗證：資料正確渲染、切換日期正確更新、手機寬度（390px）無橫向溢出 |
 | `dashboard/vendor/chart.umd.min.js` | Chart.js 4.5.1 UMD build，**打包進 repo 本機提供，不用外部 CDN**（此開發環境的網路白名單擋掉 jsdelivr 等 CDN 網域，且自架更穩定、不受任何 CDN 政策影響） | 已建立（Phase 4） |
 | `fubon_client.py` | 富邦證券 API 連線與持股查詢（既有，與本專案獨立，僅本機執行） | 已建立（本專案之前） |
+| `scripts/sync_holdings_from_fubon.py` | 用富邦 API 同步 `config/holdings.json` 的股數（不含成本，需要另外維護） | 已建立，預設只更新既有清單，`--include-new` 才會擴大範圍 |
+| `src/email_report.py`／`scripts/send_email.py` | 每日 Email 通知：讀完整版 report 渲染 HTML 並用 SMTP 寄出 | 已建立（Phase 5） |
+| `src/state_sync.py` | 透過 GitHub Contents API 讀寫私人 repo `2026-private-state` 裡的 JSON，讓 `nav_state.json`（含真實金額）能跨 GitHub Actions 執行保留 | 已建立，需要使用者設定 `STATE_REPO_TOKEN` Secret 才會啟用；沒設定時退回本機檔案 |
 
 ## 3. 策略 JSON Schema 說明
 
@@ -229,18 +232,35 @@ GitHub Actions（排程）
     - T4-3：NAV 圖表資料結構已支援疊加大盤序列、checkbox 可切換顯示；**目前只有 2026-07-31 一天資料，圖表上只有單一個點，尚未能視覺化驗證多日曲線疊加效果，邏輯已備妥，待累積更多天數後可再次確認** — 部分驗證
     - T4-4：390px（手機）寬度下 `document.body.scrollWidth` 等於 viewport 寬度，無橫向溢出，畫面正確堆疊 — PASS
   - 全套測試 68/68 通過（新增 `tests/test_public_index.py`、`daily_pipeline` 的 benchmark 相關測試）
-  - **尚待使用者操作**：GitHub Pages 需要在 repo 的 Settings → Pages 手動設定發布來源（分支＋根目錄），且 Dashboard 假設 Pages 從 repo 根目錄發布（`dashboard/` 與 `reports_public/` 才會是同一層），這是 repo 設定變更，我不會自動去改，需要使用者自己去 GitHub 網頁設定
-- **進行中**：無，等待使用者在 GitHub 設定 Pages 發布來源並確認網頁能開啟
+  - GitHub Pages 已由使用者設定完成並確認可正常瀏覽（Settings → Pages → Deploy from branch → `claude/github-login-o83wwg` / root）
+- **已完成**：Phase 5　每日 Email 通知 — 2026-08-03
+  - `src/email_report.py`：讀**完整版**（含真實金額）report 渲染 HTML Email，內容對應計劃書結構（資產總覽、持股逐檔盈虧、前十強、預測名單、關注類股、停損/停利訊號提醒、固定風險聲明），紅漲綠跌配色與 Dashboard 一致
+  - `scripts/send_email.py`：讀 `reports/{date}/report.json` 與 `reports/{date}/warnings.json`，透過 SMTP 寄出；`send_email()` 可注入假 env dict，測試不連真實網路
+  - `daily_pipeline.py` 新增 `_save_warnings()`：追蹤資料抓取失敗的股票代號，區分「你的持股」與「候選股/類股代表股」給不同警語，寫進 `reports/{date}/warnings.json`，Email 會顯示「資料不完整」提醒（T5-4）
+  - 13 項新測試（`test_email_report.py`、`test_send_email.py`），涵蓋 T5-1（SMTP 呼叫參數正確）、T5-2（HTML 內容與 Model 一致）、T5-4（警語正確顯示/不顯示）
+- **已完成（NAV 跨環境持久化）**：2026-08-03，使用者選擇「真正解決」而非接受限制
+  - 建立獨立私人 repo `yp907teacher-maker/2026-private-state`（透過 GitHub MCP 工具的 `add_repo`／本機建立，這個整合帳號沒有建立新 repo 的權限，是使用者自己在 GitHub 網頁建立的）
+  - `src/state_sync.py`：`pull_state()`／`push_state()` 透過 GitHub Contents API 讀寫該私人 repo 裡的 JSON 檔案（base64 編碼＋sha 版本控制），需要一組有寫入權限的 Personal Access Token
+  - `daily_pipeline.py` 新增 `_load_nav_state()`／`_save_nav_state()`：**設定 `STATE_REPO_TOKEN` 環境變數時**改讀寫私人 repo（適合 GitHub Actions 排程），**沒設定時**維持原本讀寫本機 `reports/nav_state.json`（本機執行完全不受影響）
+  - **關鍵簡化**：`nav_history`／`benchmark_nav_history`（NAV 歷史序列本身）其實只是相對比值、不含金額，所以不需要私人 repo；`main()` 改成從**已 commit 的 `reports_public/`** 讀取前一天資料來接續歷史序列即可，這件事在 GitHub Actions 的全新 checkout 裡也一定拿得到（因為它進了公開 repo 的 git 歷史）。只有 `nav_state.json` 這兩個數字（`baseline_total_value`、`peak_nav`）需要私人 repo 方案
+  - `.github/workflows/daily-pipeline.yml`：新增 `schedule: cron '50 0 * * 1-5'`（台灣時間週一~五 08:50，使用者指定的時間）、寄信步驟（讀 `SMTP_*`／`EMAIL_TO` Secrets）、`STATE_REPO_TOKEN` 傳入環境變數；commit 步驟一併加回 `reports/rebalance_state.json`（發現它不含金額，之前誤排除，見上一輪 changelog）
+  - 10 項新測試（`test_state_sync.py` 5 項用假 `requests.get/put` 攔截、`test_daily_pipeline.py` 新增 4 項驗證 `_load_nav_state()`/`_save_nav_state()` 在有無 token 時正確切換）。全套測試 101/101 通過
+  - **尚待使用者操作**：
+    1. 到 GitHub 帳號設定建立一組 **Personal Access Token**（fine-grained，只需要對 `2026-private-state` 這個 repo 的 Contents 讀寫權限），存成 `2026` repo 的 Secret，名稱 `STATE_REPO_TOKEN`
+    2. 設定 `SMTP_HOST`／`SMTP_PORT`／`SMTP_USER`／`SMTP_PASS`／`EMAIL_TO` 這幾個 Secrets 才能讓排程真的寄信（Gmail 需要「應用程式密碼」）
+    3. 想讓排程也能同步到真實持股，需要設定 `HOLDINGS_JSON` Secret（Phase 3 末已有的機制）
+    4. 三組 Secrets 都設定好後，`daily-pipeline.yml` 就會在台灣時間週一~五 08:50 自動執行「抓資料→算報告→寄 Email→commit 公開版」全流程，NAV 也會正確累積不會每次重來
+- **進行中**：無，等待使用者設定上述 Secrets 並觀察排程第一次自動執行的結果
 - **已知限制**：
   - 開發用雲端 sandbox 連不到 `api.finmindtrade.com`，此限制會持續影響後續所有 Phase 的資料驗證，皆須在 GitHub Actions 或使用者本機執行後回報結果
   - `requirements.txt` / `requirements-broker.txt` 曾因檔案內中文註解，在 Windows 繁體中文語系（cp950）下被 `pip install -r` 讀取時噴 `UnicodeDecodeError`，已改為純英文註解修正；日後新增 requirements 檔案應避免非 ASCII 字元
   - `src/strategy_engine.py` 目前只計算「最新一筆」因子值（適合每日排名/報告用途），尚未支援對整段歷史序列逐日計算因子（回測 Phase 需要時要再擴充）
-  - **跨日狀態在 GitHub Actions 上無法累積**（見 1.1 節末段）：`nav_state.json`／`rebalance_state.json` 不進 git，Actions 每次執行都是全新環境，NAV 會重新從 1.0 開始、再平衡狀態重置。目前只有本機連續執行能正確累積，這個缺口尚未解決——**代表現階段建議使用者固定在同一台本機每天手動或排程執行 `daily_pipeline.py`，而不是依賴 GitHub Actions 自動排程**
   - `daily_pipeline.py` 的 `is_first_trading_day_of_month` 判斷依賴 `0050` 的日期序列做市場交易日曆，若 `0050` 抓取失敗會直接中止整批執行（`main()` 已對此情況印出錯誤訊息並回傳非 0 結束碼，不會產生半殘的報告）
   - `config/universe.json` 是精選 30 檔，非全市場；之後想擴大選股範圍只需編輯這份 JSON，不需要改程式碼
-  - 使用者的實際持股共 245 檔（多為 1～2 股零股），`convert_holdings_csv.py` 預設用 1% 成本佔比門檻篩選後保留 22 檔；門檻可用 `--min-pct` 調整
+  - 使用者的實際持股共 245 檔（多為 1～2 股零股），目前 `config/holdings.json` 保留 22 檔較大部位（佔比 >= 1%）；`scripts/sync_holdings_from_fubon.py` 預設只同步既有清單的股數，不會自動擴大追蹤範圍，除非加 `--include-new`
   - Dashboard 假設 GitHub Pages 從 repo **根目錄**發布（`app.js` 用相對路徑 `../reports_public/...` 抓資料）；如果之後改成從 `/docs` 或其他設定發布，路徑就要跟著調整
-  - NAV 圖表疊加大盤對比（T4-3）目前只有邏輯與單一資料點的驗證，尚未在多天真實資料上視覺確認曲線正確；等 `reports_public/` 累積更多天數後應該回頭再檢查一次
+  - NAV 圖表疊加大盤對比（T4-3）目前只有邏輯與少量真實資料點的驗證，尚未在多天資料上完整視覺確認曲線正確；等排程開始自動累積資料後應該回頭再檢查一次
+  - `src/state_sync.py` 目前只支援存單一 JSON 檔案（`nav_state.json`），如果之後有其他需要跨 Actions 執行持久化的敏感狀態，可以照同樣模式擴充（`pull_state`/`push_state` 已是通用函式，換個 path 參數就能存別的檔案）
 
 ## 6. 資料源清單與已知限制/風險
 
@@ -270,3 +290,7 @@ GitHub Actions（排程）
 - 2026-08-03：**第一次真實資料端到端跑通**。使用者用 `convert_holdings_csv.py` 轉出的 22 檔持股填入本機 `config/holdings.json`，執行 `py -3.12 scripts/daily_pipeline.py` 成功產生 2026-07-31 的完整版與公開版報告；完整版經人工核對持股/市值/損益% 皆正確（`cash` 待補）。確認 `git status` 只會 commit `reports_public/2026-07-31/report.json` 與 `reports/score_history.json` 兩個不含金額的安全檔案後，commit `b6588dc` 推上 `claude/github-login-o83wwg`。至此 Phase 0～3（含每日整合腳本與隱私架構）全部有真實資料驗證過，可以開始 **Phase 4：GitHub Pages Dashboard**。
 - 2026-08-03：使用者補上真實交割戶 `cash` 金額（本機 `config/holdings.json`），重跑 pipeline 並 commit `b9864d0`／合併 commit `f011df0`（與此開發環境同時推送的 `PROJECT_MEMORY.md` 更新有 push 衝突，已用 `git pull` 合併解決）。
 - 2026-08-03：完成 Phase 4。新增 `benchmark_nav_history`（大盤 0050 NAV 比值，schema／pipeline 皆已支援）、`reports_public/index.json`（歷史日期索引）、`dashboard/`（index.html/app.js/style.css，深色主題＋RWD，Chart.js 4.5.1 打包在 `dashboard/vendor/` 不依賴外部 CDN）。用 Python `http.server` + Playwright headless Chromium 本機驗證：T4-1（純靜態載入真實資料）、T4-2（切換日期正確更新）、T4-4（390px 手機寬度無橫向溢出）皆 PASS；T4-3（NAV 疊加大盤）邏輯與圖表結構已備妥，但目前只有一天真實資料、圖表只有單點，多日曲線疊加效果尚待之後累積資料後視覺確認。全套測試 68/68 通過。**尚待使用者動作**：到 GitHub repo 的 Settings → Pages 手動設定發布來源（根目錄），Dashboard 才能真正上線。
+- 2026-08-03：使用者設定完 GitHub Pages 並確認網頁正常顯示。發現公開版報告漲跌配色用了歐美習慣（綠漲紅跌），改成台股習慣（紅漲綠跌），修正 `dashboard/style.css`。
+- 2026-08-03：使用者的富邦 API 權限開通，貼出 `sdk.accounting.inventories()` 的真實回應。新增 `scripts/sync_holdings_from_fubon.py` 自動同步股數（成本價仍手動維護，這個 API 端點沒有成本欄位）。`.gitignore` 修正：`reports/rebalance_state.json` 其實不含金額，先前誤排除，改回追蹤。
+- 2026-08-03：使用者反應第一次執行同步腳本把帳戶裡全部 244 檔（含之前濾掉的 222 檔零股）都加進 `holdings.json`。改成預設只更新既有清單的股數，新股票需要明確加 `--include-new` 才會加入，避免同步腳本擅自擴大追蹤範圍。重新用 `convert_holdings_csv.py` 產生回 22 檔版本供使用者覆蓋。
+- 2026-08-03：完成 Phase 5（Email 通知）與 NAV 跨環境持久化。新增 `src/email_report.py`／`scripts/send_email.py`（讀完整版 report 寄 HTML Email）、`daily_pipeline.py` 的 `_save_warnings()`（T5-4 資料不完整提醒）。使用者選擇「真正解決」NAV 基準值無法跨 GitHub Actions 執行保留的問題：建立私人 repo `2026-private-state`，新增 `src/state_sync.py` 透過 GitHub Contents API 讀寫，`daily_pipeline.py` 依 `STATE_REPO_TOKEN` 環境變數是否存在自動切換本機檔案／私人 repo。同時發現 `nav_history`／`benchmark_nav_history` 本身不含金額，不需要私人 repo，直接從已 commit 的 `reports_public/` 讀取前一天資料即可接續。`daily-pipeline.yml` 加上 cron 排程（台灣時間週一~五 08:50，使用者指定）與寄信步驟。全套測試 101/101 通過。**尚待使用者操作**：建立 `STATE_REPO_TOKEN`／`SMTP_*`／`EMAIL_TO` 這些 Secrets，排程才能真正自動運作。

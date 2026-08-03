@@ -11,19 +11,24 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from dotenv import load_dotenv
+
 from src.nav import append_nav_history, compute_nav_entry
 from src.portfolio import build_portfolio_snapshot
 from src.predictor import predict_next_day
 from src.rebalance import check_rebalance
-from src.report_builder import build_report, load_report, save_public_report, save_report
+from src.report_builder import build_report, save_public_report, save_report
 from src.score_history import append_score_snapshot, save_score_history, to_predictor_input
 from src.sectors import build_watched_sectors
 from src.strategy_engine import rank_stocks
+
+load_dotenv()
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CONFIG_DIR = REPO_ROOT / "config"
@@ -36,6 +41,12 @@ SCORE_HISTORY_PATH = REPORTS_DIR / "score_history.json"
 # 大盤基準（0050）股價比值，不含私人資料，可安全 commit
 BENCHMARK_NAV_STATE_PATH = REPORTS_DIR / "benchmark_nav_state.json"
 PUBLIC_INDEX_PATH = PUBLIC_REPORTS_DIR / "index.json"
+
+# nav_state.json 含真實金額基準值，本機執行時走本機檔案；設定 STATE_REPO_TOKEN
+# 時（例如 GitHub Actions 排程）改存到另一個私人 repo，讓跨次執行也能正確累積
+# NAV，同時不會讓金額進到公開 repo。見 src/state_sync.py。
+STATE_REPO = os.environ.get("STATE_REPO", "yp907teacher-maker/2026-private-state")
+STATE_REPO_PATH = "nav_state.json"
 
 PREDICTOR_LOOKBACK = 5
 PREDICTOR_TOP_N = 10
@@ -167,6 +178,25 @@ def _save_json(path: Path, data) -> None:
         json.dump(data, fh, ensure_ascii=False, indent=2)
 
 
+def _load_nav_state() -> dict | None:
+    token = os.environ.get("STATE_REPO_TOKEN")
+    if token:
+        from src.state_sync import pull_state
+
+        return pull_state(STATE_REPO, STATE_REPO_PATH, token)
+    return _load_json(NAV_STATE_PATH, None)
+
+
+def _save_nav_state(data: dict, report_date: str) -> None:
+    token = os.environ.get("STATE_REPO_TOKEN")
+    if token:
+        from src.state_sync import push_state
+
+        push_state(STATE_REPO, STATE_REPO_PATH, token, data, message=f"chore: update nav_state {report_date}")
+    else:
+        _save_json(NAV_STATE_PATH, data)
+
+
 def _update_public_index(report_date: str) -> None:
     """維護 reports_public/index.json：純靜態網站沒有後端可以列目錄，Dashboard
     要知道有哪些日期可選（T4-2），得靠這個索引檔。"""
@@ -279,15 +309,20 @@ def main() -> int:
         len(calendar_dates) >= 2 and calendar_dates[-1][:7] != calendar_dates[-2][:7]
     )
 
+    # nav_history／benchmark_nav_history 只是相對比值，不含真實金額，所以從會
+    # commit 的公開版報告讀「上一天」就夠了——這個目錄在 GitHub Actions 的全新
+    # checkout 裡也一定存在（因為進了 git），不像完整版 reports/ 只在本機累積。
     previous_report = None
     existing_report_dates = sorted(
-        p.name for p in REPORTS_DIR.iterdir() if p.is_dir() and p.name < report_date
-    ) if REPORTS_DIR.exists() else []
+        p.name for p in PUBLIC_REPORTS_DIR.iterdir() if p.is_dir() and p.name < report_date
+    ) if PUBLIC_REPORTS_DIR.exists() else []
     if existing_report_dates:
-        previous_report = load_report(existing_report_dates[-1], base_dir=REPORTS_DIR)
+        from src.report_builder import load_public_report
+
+        previous_report = load_public_report(existing_report_dates[-1], base_dir=PUBLIC_REPORTS_DIR)
 
     score_history = _load_json(SCORE_HISTORY_PATH, [])
-    nav_state = _load_json(NAV_STATE_PATH, None)
+    nav_state = _load_nav_state()
     rebalance_state = _load_json(REBALANCE_STATE_PATH, None)
     benchmark_nav_state = _load_json(BENCHMARK_NAV_STATE_PATH, None)
 
@@ -310,7 +345,7 @@ def main() -> int:
     save_report(result["report"], base_dir=REPORTS_DIR)
     save_public_report(result["report"], base_dir=PUBLIC_REPORTS_DIR)
     save_score_history(result["score_history"], SCORE_HISTORY_PATH)
-    _save_json(NAV_STATE_PATH, result["nav_state"])
+    _save_nav_state(result["nav_state"], report_date)
     _save_json(REBALANCE_STATE_PATH, result["rebalance_state"])
     _save_json(BENCHMARK_NAV_STATE_PATH, result["benchmark_nav_state"])
     _update_public_index(report_date)
