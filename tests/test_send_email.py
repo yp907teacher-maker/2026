@@ -113,6 +113,14 @@ def test_latest_report_date_none_when_missing(tmp_reports_dir):
     assert latest_report_date(empty_dir) is None
 
 
+def test_latest_report_date_ignores_portfolio_subdirectories(tmp_reports_dir):
+    """Phase 6 之後 reports/ 底下除了日期資料夾，還會有非 default 組合的子目錄
+    （例如 reports/example_meanreversion/），這種目錄名不能被誤判成日期。"""
+    (tmp_reports_dir / "2026-08-03").mkdir()
+    (tmp_reports_dir / "example_meanreversion").mkdir()
+    assert latest_report_date(tmp_reports_dir) == "2026-08-03"
+
+
 def test_t5_4_load_warnings_returns_empty_list_when_no_file(tmp_reports_dir):
     (tmp_reports_dir / "2026-08-03").mkdir()
     assert load_warnings("2026-08-03", tmp_reports_dir) == []

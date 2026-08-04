@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import smtplib
 import sys
 from email.mime.multipart import MIMEMultipart
@@ -33,10 +34,16 @@ from src.report_builder import REPORTS_DIR, load_report  # noqa: E402
 load_dotenv()
 
 
+_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
 def latest_report_date(base_dir: Path = REPORTS_DIR) -> str | None:
+    """base_dir 底下除了日期資料夾，Phase 6 之後還會有其他組合的子目錄
+    （例如 reports/example_meanreversion/），這裡只挑日期格式的資料夾，
+    避免把組合子目錄誤判成「最新日期」。"""
     if not base_dir.exists():
         return None
-    dates = sorted(p.name for p in base_dir.iterdir() if p.is_dir())
+    dates = sorted(p.name for p in base_dir.iterdir() if p.is_dir() and _DATE_RE.match(p.name))
     return dates[-1] if dates else None
 
 
