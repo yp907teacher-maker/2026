@@ -1,0 +1,136 @@
+{
+  "date": "2026-08-11",
+  "generated_at": "2026-08-12T03:12:00.809010+00:00",
+  "cash": {
+    "pct_of_total": 0.4319654427645788
+  },
+  "holdings": [
+    {
+      "stock_id": "2317",
+      "name": "鴻海",
+      "unrealized_pnl_pct": 0.315,
+      "performance": {
+        "1d_pct": -0.005671077504725898,
+        "1w_pct": 0.052,
+        "1m_pct": 0.11677282377919321
+      },
+      "pe_ratio": 18.68,
+      "pct_of_portfolio": 0.5680345572354212
+    }
+  ],
+  "top10": [
+    {
+      "stock_id": "2412",
+      "score": 10.969807926650155
+    },
+    {
+      "stock_id": "2892",
+      "score": 10.51258210964344
+    }
+  ],
+  "predictions": {
+    "lookback": 5,
+    "top_n": 10,
+    "items": []
+  },
+  "watched_sectors": [
+    {
+      "sector": "半導體",
+      "representative_stocks": [
+        "2330",
+        "2454",
+        "3711"
+      ],
+      "today_pct_change": 0.006622244857538976
+    },
+    {
+      "sector": "AI",
+      "representative_stocks": [
+        "3231",
+        "2382",
+        "6669"
+      ],
+      "today_pct_change": -0.005764752353362283
+    },
+    {
+      "sector": "金融",
+      "representative_stocks": [
+        "2882",
+        "2881",
+        "2891"
+      ],
+      "today_pct_change": -0.004413719508927608
+    }
+  ],
+  "benchmark_nav_history": [
+    {
+      "date": "2026-08-03",
+      "nav": 1.0
+    },
+    {
+      "date": "2026-08-04",
+      "nav": 1.0
+    },
+    {
+      "date": "2026-08-05",
+      "nav": 1.0
+    },
+    {
+      "date": "2026-08-06",
+      "nav": 1.0
+    },
+    {
+      "date": "2026-08-07",
+      "nav": 1.0
+    },
+    {
+      "date": "2026-08-10",
+      "nav": 1.0
+    },
+    {
+      "date": "2026-08-11",
+      "nav": 1.0
+    }
+  ],
+  "nav_history": [
+    {
+      "date": "2026-08-03",
+      "nav": 1.0,
+      "drawdown_pct": 0.0
+    },
+    {
+      "date": "2026-08-04",
+      "nav": 0.9933774834437086,
+      "drawdown_pct": -0.0066225165562914245
+    },
+    {
+      "date": "2026-08-05",
+      "nav": 1.0121412803532008,
+      "drawdown_pct": 0.0
+    },
+    {
+      "date": "2026-08-06",
+      "nav": 1.0253863134657837,
+      "drawdown_pct": 0.0
+    },
+    {
+      "date": "2026-08-07",
+      "nav": 1.0154525386313467,
+      "drawdown_pct": -0.009687836383207691
+    },
+    {
+      "date": "2026-08-10",
+      "nav": 1.0253863134657837,
+      "drawdown_pct": 0.0
+    },
+    {
+      "date": "2026-08-11",
+      "nav": 1.0220750551876379,
+      "drawdown_pct": -0.003229278794402708
+    }
+  ],
+  "rebalance": {
+    "triggered": false,
+    "reason": null
+  }
+}
