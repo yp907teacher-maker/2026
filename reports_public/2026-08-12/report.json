@@ -1,0 +1,539 @@
+{
+  "date": "2026-08-12",
+  "generated_at": "2026-08-13T03:14:59.866946+00:00",
+  "cash": {
+    "pct_of_total": 0.09951055493037948
+  },
+  "holdings": [
+    {
+      "stock_id": "0050",
+      "name": "元大台灣50",
+      "unrealized_pnl_pct": 0.09821623376555585,
+      "performance": {
+        "1d_pct": 0.005736137667304097,
+        "1w_pct": 0.013487475915221635,
+        "1m_pct": -0.010348071495766645
+      },
+      "pe_ratio": null,
+      "pct_of_portfolio": 0.03423132719606275
+    },
+    {
+      "stock_id": "0052",
+      "name": "富邦科技",
+      "unrealized_pnl_pct": 0.21336476901678,
+      "performance": {
+        "1d_pct": 0.007371007371007418,
+        "1w_pct": 0.0140148392415499,
+        "1m_pct": -0.012048192771084338
+      },
+      "pe_ratio": null,
+      "pct_of_portfolio": 0.13374459373347614
+    },
+    {
+      "stock_id": "0056",
+      "name": "元大高股息",
+      "unrealized_pnl_pct": 0.091786739038109,
+      "performance": {
+        "1d_pct": 0.007648183556405463,
+        "1w_pct": 0.024295432458697763,
+        "1m_pct": -0.005660377358490513
+      },
+      "pe_ratio": null,
+      "pct_of_portfolio": 0.017148202882438277
+    },
+    {
+      "stock_id": "00878",
+      "name": "國泰永續高股息",
+      "unrealized_pnl_pct": 0.4669584245076587,
+      "performance": {
+        "1d_pct": 0.0014938751120407608,
+        "1w_pct": 0.011161387631976005,
+        "1m_pct": 0.009334537789822411
+      },
+      "pe_ratio": null,
+      "pct_of_portfolio": 0.018178613555323565
+    },
+    {
+      "stock_id": "00910",
+      "name": "第一金太空衛星",
+      "unrealized_pnl_pct": 0.1644909471982112,
+      "performance": {
+        "1d_pct": 0.015079365079365125,
+        "1w_pct": 0.039837398373983784,
+        "1m_pct": 0.0931623931623932
+      },
+      "pe_ratio": null,
+      "pct_of_portfolio": 0.020808872378214948
+    },
+    {
+      "stock_id": "00923",
+      "name": "群益台ESG低碳50",
+      "unrealized_pnl_pct": 0.14042207792207786,
+      "performance": {
+        "1d_pct": 0.005246839971380846,
+        "1w_pct": 0.01984030970239536,
+        "1m_pct": 0.006446991404011366
+      },
+      "pe_ratio": null,
+      "pct_of_portfolio": 0.022858847295849884
+    },
+    {
+      "stock_id": "00929",
+      "name": "復華台灣科技優息",
+      "unrealized_pnl_pct": 0.14413018209996137,
+      "performance": {
+        "1d_pct": 0.01234144669180663,
+        "1w_pct": 0.026059763724808893,
+        "1m_pct": -0.0195883134130146
+      },
+      "pe_ratio": null,
+      "pct_of_portfolio": 0.01601475114226446
+    },
+    {
+      "stock_id": "009816",
+      "name": "凱基台灣TOP50",
+      "unrealized_pnl_pct": 0.47725072604065827,
+      "performance": {
+        "1d_pct": 0.00659630606860156,
+        "1w_pct": 0.01733333333333332,
+        "1m_pct": -0.0019620667102681075
+      },
+      "pe_ratio": null,
+      "pct_of_portfolio": 0.08275824667489187
+    },
+    {
+      "stock_id": "00981A",
+      "name": "主動統一台股增長",
+      "unrealized_pnl_pct": 0.40427792641660243,
+      "performance": {
+        "1d_pct": 0.021232161503654697,
+        "1w_pct": 0.03092059030217846,
+        "1m_pct": -0.0013614703880190317
+      },
+      "pe_ratio": null,
+      "pct_of_portfolio": 0.047735130224927806
+    },
+    {
+      "stock_id": "00993A",
+      "name": "主動安聯台灣",
+      "unrealized_pnl_pct": 0.3494461228600202,
+      "performance": {
+        "1d_pct": 0.019786910197869084,
+        "1w_pct": 0.04605776736924277,
+        "1m_pct": 0.015151515151515233
+      },
+      "pe_ratio": null,
+      "pct_of_portfolio": 0.07267106850875171
+    },
+    {
+      "stock_id": "1326",
+      "name": "台化",
+      "unrealized_pnl_pct": 0.16946212590947268,
+      "performance": {
+        "1d_pct": 0.02405498281786939,
+        "1w_pct": 0.017064846416382253,
+        "1m_pct": -0.15819209039548018
+      },
+      "pe_ratio": 25.25,
+      "pct_of_portfolio": 0.035554591428610165
+    },
+    {
+      "stock_id": "2317",
+      "name": "鴻海",
+      "unrealized_pnl_pct": 0.20392372117661703,
+      "performance": {
+        "1d_pct": 0.026615969581749048,
+        "1w_pct": 0.04448742746615087,
+        "1m_pct": 0.1297071129707113
+      },
+      "pe_ratio": 19.18,
+      "pct_of_portfolio": 0.021964016974660033
+    },
+    {
+      "stock_id": "2330",
+      "name": "台積電",
+      "unrealized_pnl_pct": 0.3741109530583215,
+      "performance": {
+        "1d_pct": 0.008350730688935281,
+        "1w_pct": 0.004158004158004158,
+        "1m_pct": -0.010245901639344262
+      },
+      "pe_ratio": 32.47,
+      "pct_of_portfolio": 0.05238824789511504
+    },
+    {
+      "stock_id": "2374",
+      "name": "佳能",
+      "unrealized_pnl_pct": -0.23719745277292062,
+      "performance": {
+        "1d_pct": 0.005625879043600643,
+        "1w_pct": 0.031746031746031786,
+        "1m_pct": -0.017857142857142818
+      },
+      "pe_ratio": 22.07,
+      "pct_of_portfolio": 0.011632794175468092
+    },
+    {
+      "stock_id": "2404",
+      "name": "漢唐",
+      "unrealized_pnl_pct": -0.035356110827808866,
+      "performance": {
+        "1d_pct": -0.013043478260869565,
+        "1w_pct": 0.017937219730941704,
+        "1m_pct": -0.11673151750972763
+      },
+      "pe_ratio": 21.1,
+      "pct_of_portfolio": 0.03077673983486313
+    },
+    {
+      "stock_id": "2455",
+      "name": "全新",
+      "unrealized_pnl_pct": 1.0423155024228927,
+      "performance": {
+        "1d_pct": 0.04625850340136054,
+        "1w_pct": -0.00902061855670103,
+        "1m_pct": 0.21870047543581617
+      },
+      "pe_ratio": 94.24,
+      "pct_of_portfolio": 0.06255677427227246
+    },
+    {
+      "stock_id": "3105",
+      "name": "穩懋",
+      "unrealized_pnl_pct": -0.21522464194624288,
+      "performance": {
+        "1d_pct": 0.07816711590296496,
+        "1w_pct": 0.06382978723404255,
+        "1m_pct": 0.03626943005181347
+      },
+      "pe_ratio": 47.0,
+      "pct_of_portfolio": 0.043385712542538334
+    },
+    {
+      "stock_id": "3481",
+      "name": "群創",
+      "unrealized_pnl_pct": 1.0688636027781881,
+      "performance": {
+        "1d_pct": 0.0059880239520957515,
+        "1w_pct": 0.054393305439330575,
+        "1m_pct": -0.1384615384615385
+      },
+      "pe_ratio": 458.18,
+      "pct_of_portfolio": 0.03416624862724894
+    },
+    {
+      "stock_id": "3491",
+      "name": "昇達科",
+      "unrealized_pnl_pct": 0.3382900080530587,
+      "performance": {
+        "1d_pct": 0.03529411764705882,
+        "1w_pct": 0.027237354085603113,
+        "1m_pct": null
+      },
+      "pe_ratio": 144.42,
+      "pct_of_portfolio": 0.021475927708556476
+    },
+    {
+      "stock_id": "4977",
+      "name": "眾達-KY",
+      "unrealized_pnl_pct": -0.09539473684210531,
+      "performance": {
+        "1d_pct": 0.051194539249146756,
+        "1w_pct": 0.08070175438596491,
+        "1m_pct": 0.03355704697986577
+      },
+      "pe_ratio": 34.15,
+      "pct_of_portfolio": 0.041758748322193145
+    },
+    {
+      "stock_id": "4979",
+      "name": "華星光",
+      "unrealized_pnl_pct": 0.7133040656613857,
+      "performance": {
+        "1d_pct": 0.1,
+        "1w_pct": 0.1402439024390244,
+        "1m_pct": 0.36829268292682926
+      },
+      "pe_ratio": 101.45,
+      "pct_of_portfolio": 0.04867876947272801
+    },
+    {
+      "stock_id": "8150",
+      "name": "南茂",
+      "unrealized_pnl_pct": 0.01747249679143037,
+      "performance": {
+        "1d_pct": -0.06868686868686866,
+        "1w_pct": 0.06589595375722547,
+        "1m_pct": -0.19122807017543858
+      },
+      "pe_ratio": 28.72,
+      "pct_of_portfolio": 0.03000122022316526
+    }
+  ],
+  "top10": [
+    {
+      "stock_id": "2377",
+      "score": 0.14305038890767685
+    },
+    {
+      "stock_id": "3231",
+      "score": 0.11463133640553003
+    },
+    {
+      "stock_id": "3008",
+      "score": 0.10455311973018544
+    },
+    {
+      "stock_id": "2357",
+      "score": 0.09751384773927607
+    },
+    {
+      "stock_id": "6669",
+      "score": 0.08324343761236963
+    },
+    {
+      "stock_id": "3034",
+      "score": 0.05299279376440014
+    },
+    {
+      "stock_id": "1303",
+      "score": 0.048689138576779145
+    },
+    {
+      "stock_id": "2379",
+      "score": 0.0419642249880976
+    },
+    {
+      "stock_id": "2002",
+      "score": 0.037289915966386644
+    },
+    {
+      "stock_id": "2880",
+      "score": 0.02393932211424521
+    }
+  ],
+  "predictions": {
+    "lookback": 5,
+    "top_n": 10,
+    "items": [
+      {
+        "stock_id": "2377",
+        "predicted_score": 0.16475262948164682,
+        "confidence": 50.0,
+        "basis": {
+          "latest_score": 0.14305038890767685,
+          "avg_daily_change": 0.021702240573969966,
+          "lookback_days": 5
+        }
+      },
+      {
+        "stock_id": "3231",
+        "predicted_score": 0.10503240141655656,
+        "confidence": 75.0,
+        "basis": {
+          "latest_score": 0.11463133640553003,
+          "avg_daily_change": -0.009598934988973462,
+          "lookback_days": 5
+        }
+      },
+      {
+        "stock_id": "2357",
+        "predicted_score": 0.09928016543627599,
+        "confidence": 50.0,
+        "basis": {
+          "latest_score": 0.09751384773927607,
+          "avg_daily_change": 0.0017663176969999195,
+          "lookback_days": 5
+        }
+      },
+      {
+        "stock_id": "3008",
+        "predicted_score": 0.09831762837022312,
+        "confidence": 50.0,
+        "basis": {
+          "latest_score": 0.10455311973018544,
+          "avg_daily_change": -0.00623549135996232,
+          "lookback_days": 5
+        }
+      },
+      {
+        "stock_id": "1303",
+        "predicted_score": 0.06773965803437629,
+        "confidence": 75.0,
+        "basis": {
+          "latest_score": 0.048689138576779145,
+          "avg_daily_change": 0.019050519457597143,
+          "lookback_days": 5
+        }
+      },
+      {
+        "stock_id": "6669",
+        "predicted_score": 0.06177531404368691,
+        "confidence": 75.0,
+        "basis": {
+          "latest_score": 0.08324343761236963,
+          "avg_daily_change": -0.021468123568682718,
+          "lookback_days": 5
+        }
+      },
+      {
+        "stock_id": "2379",
+        "predicted_score": 0.05042276090991876,
+        "confidence": 75.0,
+        "basis": {
+          "latest_score": 0.0419642249880976,
+          "avg_daily_change": 0.008458535921821164,
+          "lookback_days": 5
+        }
+      },
+      {
+        "stock_id": "2002",
+        "predicted_score": 0.04636181089615069,
+        "confidence": 66.7,
+        "basis": {
+          "latest_score": 0.037289915966386644,
+          "avg_daily_change": 0.00907189492976405,
+          "lookback_days": 4
+        }
+      },
+      {
+        "stock_id": "3034",
+        "predicted_score": 0.044265719750419485,
+        "confidence": 100.0,
+        "basis": {
+          "latest_score": 0.05299279376440014,
+          "avg_daily_change": -0.008727074013980651,
+          "lookback_days": 2
+        }
+      },
+      {
+        "stock_id": "2882",
+        "predicted_score": 0.023986005566596746,
+        "confidence": 50.0,
+        "basis": {
+          "latest_score": 0.020157576997851256,
+          "avg_daily_change": 0.00382842856874549,
+          "lookback_days": 5
+        }
+      }
+    ]
+  },
+  "watched_sectors": [
+    {
+      "sector": "半導體",
+      "representative_stocks": [
+        "2330",
+        "2454",
+        "3711"
+      ],
+      "today_pct_change": -0.0018705504531623847
+    },
+    {
+      "sector": "AI",
+      "representative_stocks": [
+        "3231",
+        "2382",
+        "6669"
+      ],
+      "today_pct_change": 0.020268320800315442
+    },
+    {
+      "sector": "金融",
+      "representative_stocks": [
+        "2882",
+        "2881",
+        "2891"
+      ],
+      "today_pct_change": -0.003267498637263611
+    }
+  ],
+  "benchmark_nav_history": [
+    {
+      "date": "2026-07-31",
+      "nav": 1.0
+    },
+    {
+      "date": "2026-08-03",
+      "nav": 0.9917355371900827
+    },
+    {
+      "date": "2026-08-04",
+      "nav": 0.9786096256684493
+    },
+    {
+      "date": "2026-08-05",
+      "nav": 1.0092367525522605
+    },
+    {
+      "date": "2026-08-06",
+      "nav": 1.0043753038405445
+    },
+    {
+      "date": "2026-08-07",
+      "nav": 1.0
+    },
+    {
+      "date": "2026-08-10",
+      "nav": 1.013612056392805
+    },
+    {
+      "date": "2026-08-11",
+      "nav": 1.0170150704910064
+    },
+    {
+      "date": "2026-08-12",
+      "nav": 1.0228488089450658
+    }
+  ],
+  "nav_history": [
+    {
+      "date": "2026-07-31",
+      "nav": 1.0,
+      "drawdown_pct": 0.0
+    },
+    {
+      "date": "2026-08-03",
+      "nav": 1.0179813716166237,
+      "drawdown_pct": 0.0
+    },
+    {
+      "date": "2026-08-04",
+      "nav": 1.0413033829989584,
+      "drawdown_pct": 0.0
+    },
+    {
+      "date": "2026-08-05",
+      "nav": 1.0816125477408933,
+      "drawdown_pct": 0.0
+    },
+    {
+      "date": "2026-08-06",
+      "nav": 1.0819615657503434,
+      "drawdown_pct": 0.0
+    },
+    {
+      "date": "2026-08-07",
+      "nav": 1.0683027640656373,
+      "drawdown_pct": -0.01262410987328714
+    },
+    {
+      "date": "2026-08-10",
+      "nav": 1.098633515994143,
+      "drawdown_pct": 0.0
+    },
+    {
+      "date": "2026-08-11",
+      "nav": 1.093957399272376,
+      "drawdown_pct": -0.004256302628393482
+    },
+    {
+      "date": "2026-08-12",
+      "nav": 1.113430853071268,
+      "drawdown_pct": 0.0
+    }
+  ],
+  "rebalance": {
+    "triggered": false,
+    "reason": null
+  }
+}
