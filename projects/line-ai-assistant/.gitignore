@@ -2,3 +2,4 @@
 __pycache__/
 *.pyc
 .venv/
+token_store.sqlite3
