@@ -1,0 +1,37 @@
+name: line-ai-assistant 日曆提醒排程
+
+on:
+  schedule:
+    - cron: "0 23 * * *" # 每日 07:00 台灣時間（UTC+8）
+    - cron: "0 23 * * 0" # 每週一 07:00 台灣時間
+  workflow_dispatch:
+    inputs:
+      type:
+        description: "手動觸發時要送出的提醒類型"
+        required: true
+        default: daily
+        type: choice
+        options:
+          - daily
+          - weekly
+
+jobs:
+  send-reminders:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 判斷提醒類型
+        id: type
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "type=${{ github.event.inputs.type }}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.schedule }}" = "0 23 * * 0" ]; then
+            echo "type=weekly" >> "$GITHUB_OUTPUT"
+          else
+            echo "type=daily" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 呼叫 line-ai-assistant 的提醒 API
+        run: |
+          curl --fail -sS -X POST \
+            "${{ secrets.LINE_AI_ASSISTANT_BASE_URL }}/internal/send-reminders?type=${{ steps.type.outputs.type }}" \
+            -H "X-Internal-Secret: ${{ secrets.LINE_AI_ASSISTANT_INTERNAL_SECRET }}"
