@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>飲料許願池</title>
+<style>
+  :root {
+    --bg: #fff7ec;
+    --card: #ffffff;
+    --ink: #3b2a1e;
+    --muted: #8a7566;
+    --accent: #ff7a59;
+    --accent-2: #ffb347;
+    --line: #f0e2d0;
+    --shadow: 0 6px 20px rgba(120, 70, 20, .10);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1f1712;
+      --card: #2b2019;
+      --ink: #f6e9dc;
+      --muted: #b9a594;
+      --line: #43332a;
+      --shadow: 0 6px 20px rgba(0, 0, 0, .35);
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.6;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 24px 16px 64px; }
+  header { text-align: center; padding: 24px 0 8px; }
+  header .cup { font-size: 56px; display: inline-block; animation: float 3s ease-in-out infinite; }
+  @keyframes float { 50% { transform: translateY(-8px) rotate(4deg); } }
+  h1 { margin: 4px 0; font-size: 32px; letter-spacing: 2px; }
+  header p { margin: 0; color: var(--muted); }
+
+  section {
+    background: var(--card);
+    border-radius: 18px;
+    box-shadow: var(--shadow);
+    padding: 20px;
+    margin-top: 20px;
+  }
+  h2 { margin: 0 0 12px; font-size: 20px; }
+
+  form { display: grid; gap: 12px; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  label { display: grid; gap: 4px; font-size: 14px; color: var(--muted); }
+  input, select, textarea {
+    font: inherit; color: var(--ink);
+    background: var(--bg);
+    border: 1.5px solid var(--line);
+    border-radius: 10px;
+    padding: 10px 12px;
+    width: 100%;
+  }
+  input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); border-color: transparent; }
+  textarea { resize: vertical; min-height: 60px; }
+
+  button {
+    font: inherit; cursor: pointer; border: 0; border-radius: 999px;
+    padding: 11px 22px; font-weight: 700; color: #fff;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    transition: transform .12s, filter .12s;
+  }
+  button:hover { filter: brightness(1.06); transform: translateY(-1px); }
+  button:active { transform: translateY(1px); }
+  button.ghost {
+    background: transparent; color: var(--muted); padding: 4px 10px; font-weight: 500;
+    border: 1px solid var(--line);
+  }
+
+  .quick { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+  .chip {
+    background: var(--bg); color: var(--ink); border: 1px solid var(--line);
+    padding: 5px 12px; font-weight: 500; font-size: 14px;
+  }
+
+  .draw { text-align: center; }
+  .result {
+    font-size: 30px; font-weight: 800; min-height: 52px; margin: 8px 0 16px;
+    color: var(--accent);
+  }
+  .result.spin { animation: shake .15s infinite; }
+  @keyframes shake { 50% { transform: scale(1.05); } }
+
+  .toolbar { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .toolbar select { width: auto; }
+  ul { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 10px; }
+  li.wish {
+    display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center;
+    padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--bg);
+  }
+  .name { font-weight: 700; font-size: 17px; }
+  .meta { font-size: 13px; color: var(--muted); }
+  .note { font-size: 14px; margin-top: 2px; word-break: break-word; }
+  .side { display: flex; align-items: center; gap: 6px; }
+  .vote { padding: 6px 14px; }
+  .del { border: 0; font-size: 16px; }
+  .empty { text-align: center; color: var(--muted); padding: 24px 0 8px; }
+  footer { text-align: center; color: var(--muted); font-size: 13px; margin-top: 28px; }
+
+  @media (max-width: 480px) {
+    .row { grid-template-columns: 1fr; }
+    h1 { font-size: 26px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="cup">🧋</div>
+    <h1>飲料許願池</h1>
+    <p>想喝什麼，丟進來許願吧！大家投票決定今天喝哪一杯</p>
+  </header>
+
+  <section>
+    <h2>✨ 我要許願</h2>
+    <form id="form">
+      <label>想喝的飲料
+        <input id="drink" required maxlength="30" placeholder="例如：楊枝甘露、美式咖啡…">
+      </label>
+      <div class="quick" id="quick"></div>
+      <div class="row">
+        <label>甜度
+          <select id="sugar">
+            <option>正常糖</option><option>少糖</option><option>半糖</option>
+            <option>微糖</option><option>無糖</option>
+          </select>
+        </label>
+        <label>冰塊
+          <select id="ice">
+            <option>正常冰</option><option>少冰</option><option>微冰</option>
+            <option>去冰</option><option>熱的</option>
+          </select>
+        </label>
+      </div>
+      <div class="row">
+        <label>許願人（選填）
+          <input id="who" maxlength="12" placeholder="暱稱">
+        </label>
+        <label>店家（選填）
+          <input id="shop" maxlength="20" placeholder="例如：五十嵐">
+        </label>
+      </div>
+      <label>許願理由（選填）
+        <textarea id="note" maxlength="80" placeholder="今天好累，需要一杯續命…"></textarea>
+      </label>
+      <button type="submit">🌠 投進許願池</button>
+    </form>
+  </section>
+
+  <section class="draw">
+    <h2>🎲 命運抽籤</h2>
+    <div class="result" id="result">按下按鈕，讓老天決定</div>
+    <button id="drawBtn" type="button">幫我抽一杯</button>
+    <div class="meta" style="margin-top:10px">票數越高，被抽中的機率越大</div>
+  </section>
+
+  <section>
+    <div class="toolbar">
+      <h2 style="margin:0">📜 許願清單 <span class="meta" id="count"></span></h2>
+      <select id="sort" aria-label="排序">
+        <option value="votes">依票數</option>
+        <option value="new">依時間</option>
+      </select>
+    </div>
+    <ul id="list"></ul>
+    <div class="empty" id="empty">還沒有人許願，當第一個吧！</div>
+    <div style="text-align:right;margin-top:12px">
+      <button class="ghost" id="clear" type="button">清空全部</button>
+    </div>
+  </section>
+
+  <footer>資料只存在這台裝置的瀏覽器裡 🍹</footer>
+</div>
+
+<script>
+(function () {
+  var KEY = "drink-wishes-v1";
+  var SUGGEST = ["珍珠奶茶", "楊枝甘露", "美式咖啡", "鮮榨柳橙汁", "冬瓜茶", "百香綠茶", "黑糖鮮奶", "檸檬愛玉"];
+  var wishes = load();
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  function load() {
+    try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch (e) { return []; }
+  }
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(wishes)); } catch (e) {}
+  }
+
+  // 快速選擇
+  SUGGEST.forEach(function (s) {
+    var b = document.createElement("button");
+    b.type = "button"; b.className = "chip"; b.textContent = s;
+    b.onclick = function () { $("drink").value = s; $("drink").focus(); };
+    $("quick").appendChild(b);
+  });
+
+  $("form").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var name = $("drink").value.trim();
+    if (!name) return;
+    wishes.push({
+      id: Date.now() + "" + Math.floor(Math.random() * 1000),
+      name: name,
+      sugar: $("sugar").value,
+      ice: $("ice").value,
+      who: $("who").value.trim() || "匿名",
+      shop: $("shop").value.trim(),
+      note: $("note").value.trim(),
+      votes: 1,
+      t: Date.now()
+    });
+    save(); render();
+    $("drink").value = ""; $("note").value = "";
+    $("drink").focus();
+  });
+
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+
+  function render() {
+    var list = $("list");
+    list.textContent = "";
+    var items = wishes.slice().sort(function (a, b) {
+      return $("sort").value === "new" ? b.t - a.t : (b.votes - a.votes) || (b.t - a.t);
+    });
+    items.forEach(function (w) {
+      var li = el("li", "wish");
+      var left = el("div");
+      left.appendChild(el("div", "name", w.name));
+      var meta = [w.sugar, w.ice];
+      if (w.shop) meta.push("@" + w.shop);
+      meta.push("by " + w.who);
+      left.appendChild(el("div", "meta", meta.join(" · ")));
+      if (w.note) left.appendChild(el("div", "note", "「" + w.note + "」"));
+
+      var side = el("div", "side");
+      var v = el("button", "vote", "👍 " + w.votes);
+      v.onclick = function () { w.votes++; save(); render(); };
+      var d = el("button", "ghost del", "✕");
+      d.title = "刪除"; d.setAttribute("aria-label", "刪除 " + w.name);
+      d.onclick = function () {
+        wishes = wishes.filter(function (x) { return x.id !== w.id; });
+        save(); render();
+      };
+      side.appendChild(v); side.appendChild(d);
+      li.appendChild(left); li.appendChild(side);
+      list.appendChild(li);
+    });
+    $("empty").style.display = items.length ? "none" : "block";
+    $("count").textContent = items.length ? "（" + items.length + " 個願望）" : "";
+  }
+
+  $("sort").addEventListener("change", render);
+
+  $("clear").addEventListener("click", function () {
+    if (wishes.length && confirm("確定要清空所有願望嗎？")) {
+      wishes = []; save(); render();
+    }
+  });
+
+  // 抽籤：依票數加權；沒有願望時從建議清單抽
+  $("drawBtn").addEventListener("click", function () {
+    var pool = wishes.length
+      ? wishes.map(function (w) { return { label: w.name, weight: w.votes }; })
+      : SUGGEST.map(function (s) { return { label: s, weight: 1 }; });
+    var total = pool.reduce(function (a, p) { return a + p.weight; }, 0);
+    var r = Math.random() * total, pick = pool[0];
+    for (var i = 0; i < pool.length; i++) {
+      r -= pool[i].weight;
+      if (r <= 0) { pick = pool[i]; break; }
+    }
+    var out = $("result"), btn = $("drawBtn"), n = 0;
+    btn.disabled = true; out.classList.add("spin");
+    var timer = setInterval(function () {
+      out.textContent = "🥤 " + pool[Math.floor(Math.random() * pool.length)].label;
+      if (++n > 14) {
+        clearInterval(timer);
+        out.classList.remove("spin");
+        out.textContent = "🎉 " + pick.label;
+        btn.disabled = false; btn.textContent = "再抽一次";
+      }
+    }, 90);
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
