@@ -109,7 +109,7 @@ const $=id=>document.getElementById(id);
 const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const WD="日一二三四五六";
 const today=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")};
-const defaults=()=>({club:"棒球社",pcls:"2年8班",pname:"林耘竹",acls:"2年8班1號",aname:"王力恩",aphone:"0909-519-290",adate:today(),
+const defaults=()=>({club:"",pcls:"",pname:"",acls:"",aname:"",aphone:"",adate:today(),
   venues:[],vother:"",vclass:"",same:true,scls:"",sname:"",sphone:"",reason:"",members:"",total:"",slots:[{date:"",start:"16:00",end:"18:00"}]});
 let S=defaults();try{Object.assign(S,JSON.parse(localStorage.getItem(KEY)||"{}"))}catch(e){}
 
@@ -211,7 +211,12 @@ function render(){
 
 // ---------- history ----------
 const HKEY=KEY+".hist";
+/*SEED-START*/
+const SEED=[{at:"2026-10-30T16:00:00.000Z",data:{club:"儀隊",pcls:"2年5班",pname:"林孟明",acls:"2年5班21號",aname:"林孟明",aphone:"0983-553-736",adate:"2026-10-30",
+  venues:["康輔風操"],vother:"",vclass:"",same:true,scls:"",sname:"",sphone:"",reason:"",members:"",total:"",slots:[{date:"",start:"16:00",end:"18:00"}]}}];
+/*SEED-END*/
 let H=[];try{H=JSON.parse(localStorage.getItem(HKEY)||"[]")}catch(e){}
+try{if(SEED.length&&!localStorage.getItem(HKEY+".seeded")){H=H.concat(SEED);localStorage.setItem(HKEY+".seeded","1");histSave()}}catch(e){}
 function histSave(){try{localStorage.setItem(HKEY,JSON.stringify(H))}catch(e){}}
 function histLabel(h){const d=h.data,f=d.slots.find(x=>x.date);
   return `${h.at.slice(0,16).replace("T"," ")}｜${d.club||"(未填社團)"}｜${d.venues.concat(d.vother?[d.vother]:[]).join("、")||"(未選場地)"}｜${d.slots.length}筆${f?"｜"+f.date:""}`}
