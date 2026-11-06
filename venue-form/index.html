@@ -61,6 +61,11 @@ th{font-weight:400;text-align:center;white-space:nowrap;width:22mm}
 <div class="app">
 <div class="panel noprint">
   <h1>場地借用申請表產生器</h1>
+  <fieldset><legend>過去的申請</legend>
+    <select id="hist" style="width:100%;padding:4px"></select>
+    <div class="row" style="margin-top:6px"><button class="btn" id="histLoad">載入並修改</button><button class="btn" id="histSave">儲存這次申請</button><button class="btn" id="histDel">刪除</button></div>
+    <div class="hint">載入後會保留基本資料、場地、名單,申請日期改為今天,時段日期清空需重填。列印時也會自動存一筆。</div>
+  </fieldset>
   <fieldset><legend>基本資料</legend>
     <label>社團名稱<input type="text" id="club"></label>
     <div class="row"><label>社長班級<input type="text" id="pcls" placeholder="2年8班"></label><label>社長姓名<input type="text" id="pname"></label></div>
@@ -106,7 +111,7 @@ const WD="日一二三四五六";
 const today=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")};
 const defaults=()=>({club:"棒球社",pcls:"2年8班",pname:"林耘竹",acls:"2年8班1號",aname:"王力恩",aphone:"0909-519-290",adate:today(),
   venues:[],vother:"",vclass:"",same:true,scls:"",sname:"",sphone:"",reason:"",members:"",total:"",slots:[{date:"",start:"16:00",end:"18:00"}]});
-let S=Object.assign(defaults(),JSON.parse(localStorage.getItem(KEY)||"{}"));
+let S=defaults();try{Object.assign(S,JSON.parse(localStorage.getItem(KEY)||"{}"))}catch(e){}
 
 // ---------- panel ----------
 $("venues").innerHTML=VENUES.map((v,i)=>`<label class="chk"><input type="checkbox" data-v="${v}"> ${v}</label>`).join("");
@@ -126,7 +131,7 @@ function renderSlots(){
   $("addSlot").disabled=S.slots.length>=MAX;
   $("cnt").textContent=`(${S.slots.length}/${MAX},${S.slots.length<=3?"第1頁":"第2、3頁"})`;
 }
-function save(){localStorage.setItem(KEY,JSON.stringify(S));render()}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}render()}
 textIds.forEach(id=>$(id).addEventListener("input",()=>{S[id]=$(id).value;save()}));
 document.querySelectorAll("[data-v]").forEach(c=>c.addEventListener("change",()=>{
   S.venues=[...document.querySelectorAll("[data-v]")].filter(x=>x.checked).map(x=>x.dataset.v);save()}));
@@ -134,8 +139,9 @@ $("sameAsApplicant").addEventListener("change",e=>{S.same=e.target.checked;$("sa
 $("slots").addEventListener("input",e=>{const t=e.target;if(t.dataset.k){S.slots[+t.dataset.i][t.dataset.k]=t.value;save()}});
 $("slots").addEventListener("click",e=>{const d=e.target.dataset.del;if(d!=null){S.slots.splice(+d,1);if(!S.slots.length)S.slots.push({date:"",start:"16:00",end:"18:00"});renderSlots();save()}});
 $("addSlot").onclick=()=>{if(S.slots.length>=MAX)return;const l=S.slots[S.slots.length-1]||{};S.slots.push({date:"",start:l.start||"16:00",end:l.end||"18:00"});renderSlots();save()};
-$("print").onclick=()=>window.print();
-$("reset").onclick=()=>{if(confirm("確定清除所有資料?")){localStorage.removeItem(KEY);S=defaults();load();render()}};
+$("print").onclick=()=>{saveHistory(true);try{window.print()}catch(e){}};
+window.addEventListener("beforeprint",()=>saveHistory(true));
+$("reset").onclick=()=>{if(confirm("確定清除所有資料?")){try{localStorage.removeItem(KEY)}catch(e){}S=defaults();load();render()}};
 
 // ---------- form rendering ----------
 function parts(dstr){ // ROC y, m, d, weekday
@@ -202,6 +208,28 @@ function render(){
   }
   $("preview").innerHTML=html;
 }
+
+// ---------- history ----------
+const HKEY=KEY+".hist";
+let H=[];try{H=JSON.parse(localStorage.getItem(HKEY)||"[]")}catch(e){}
+function histSave(){try{localStorage.setItem(HKEY,JSON.stringify(H))}catch(e){}}
+function histLabel(h){const d=h.data,f=d.slots.find(x=>x.date);
+  return `${h.at.slice(0,16).replace("T"," ")}｜${d.club||"(未填社團)"}｜${d.venues.concat(d.vother?[d.vother]:[]).join("、")||"(未選場地)"}｜${d.slots.length}筆${f?"｜"+f.date:""}`}
+function renderHist(){
+  $("hist").innerHTML=H.length?H.map((h,i)=>`<option value="${i}">${esc(histLabel(h))}</option>`).join(""):'<option value="">(尚無紀錄)</option>';
+}
+function saveHistory(quiet){
+  const snap=JSON.stringify(S);
+  if(H[0]&&JSON.stringify(H[0].data)===snap){if(!quiet)alert("這筆內容已存過了");return}
+  H.unshift({at:new Date().toISOString(),data:JSON.parse(snap)});H=H.slice(0,30);histSave();renderHist();
+}
+$("histSave").onclick=()=>saveHistory(false);
+$("histLoad").onclick=()=>{const h=H[+$("hist").value];if(!h)return;
+  S=Object.assign(defaults(),JSON.parse(JSON.stringify(h.data)));
+  S.adate=today();S.slots=S.slots.map(x=>({date:"",start:x.start,end:x.end}));
+  load();save()};
+$("histDel").onclick=()=>{const i=+$("hist").value;if(!H[i]||!confirm("刪除這筆紀錄?"))return;H.splice(i,1);histSave();renderHist()};
+renderHist();
 load();render();
 </script>
 </body>
