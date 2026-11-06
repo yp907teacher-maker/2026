@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>課後活動場地借用申請表產生器</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:"DFKai-SB","BiauKai","標楷體","Noto Serif TC","PMingLiU",serif;background:#e8e8e8;color:#000}
+.app{display:flex;gap:16px;padding:16px;align-items:flex-start}
+.panel{width:380px;flex:none;background:#fff;padding:14px;border-radius:8px;font-family:system-ui,"Noto Sans TC",sans-serif;font-size:14px;position:sticky;top:16px;max-height:calc(100vh - 32px);overflow:auto}
+.panel h1{font-size:17px;margin:0 0 10px}
+.panel fieldset{border:1px solid #ccc;border-radius:6px;margin:0 0 10px;padding:8px 10px}
+.panel legend{font-weight:700;padding:0 4px}
+.panel label{display:block;margin:5px 0}
+.panel input[type=text],.panel input[type=tel],.panel input[type=date],.panel input[type=time],.panel input[type=number],.panel textarea{width:100%;padding:4px 6px;font:inherit;border:1px solid #bbb;border-radius:4px}
+.row{display:flex;gap:6px;align-items:center}.row>*{flex:1}
+.chk{display:inline-block;margin-right:10px}
+.slot{display:grid;grid-template-columns:16px minmax(0,1.5fr) minmax(0,1fr) minmax(0,1fr) 24px;gap:4px;align-items:center;margin:4px 0}
+.slot button{padding:2px}.slot input{padding:2px 3px!important;font-size:12px!important}
+button{font:inherit;cursor:pointer}
+.btn{padding:6px 12px;border:1px solid #888;border-radius:4px;background:#f4f4f4}
+.btn.primary{background:#1a5fb4;color:#fff;border-color:#1a5fb4}
+.hint{color:#666;font-size:12px}
+.preview{flex:1;overflow:auto}
+.sheet{width:210mm;height:297mm;background:#fff;margin:0 auto 16px;padding:7mm 9mm;box-shadow:0 1px 6px #0004;position:relative;overflow:hidden}
+.sheet.two{display:flex;flex-direction:column;justify-content:space-between}
+.cut{text-align:center;font-size:10px;color:#444;letter-spacing:1px;white-space:nowrap;overflow:hidden;margin:1mm 0}
+.form{font-size:12px;line-height:1.35}
+.form.big{font-size:13.5px;line-height:1.5}
+.form h2{text-align:center;font-size:19px;margin:0 0 2mm;letter-spacing:1px}
+.form.big h2{font-size:23px;margin-bottom:4mm}
+table{border-collapse:collapse;width:100%}
+td,th{border:1px solid #000;padding:1mm 1.6mm;vertical-align:middle}
+th{font-weight:400;text-align:center;white-space:nowrap;width:22mm}
+.form.big td,.form.big th{padding:2mm 2mm}
+.sign td{height:11mm;border-top:none}
+.form.big .sign td{height:17mm}
+.sign th{border-bottom:none;width:25%}
+.sign.low td{height:11mm}
+.note{font-size:10.5px;margin-top:1mm}
+.form.big .note{font-size:12px;margin-top:2mm}
+.slotline{display:block;padding:.4mm 0}
+.timeline{display:flex;flex-wrap:wrap}
+.timeline .slotline{width:100%}
+.u{display:inline-block;min-width:1.4em;text-align:center;border-bottom:1px solid #000;line-height:1.1}
+.copy{float:right;font-size:11px}
+@media print{
+  @page{size:A4;margin:0}
+  body{background:#fff}
+  .panel,.noprint{display:none!important}
+  .app{display:block;padding:0}
+  .preview{overflow:visible}
+  .sheet{margin:0;box-shadow:none;page-break-after:always;break-after:page}
+  .sheet:last-child{page-break-after:auto;break-after:auto}
+}
+@media (max-width:900px){.app{flex-direction:column}.panel{width:100%;position:static;max-height:none}.preview{width:100%}.sheet{transform-origin:top left}}
+</style>
+</head>
+<body>
+<div class="app">
+<div class="panel noprint">
+  <h1>場地借用申請表產生器</h1>
+  <fieldset><legend>基本資料</legend>
+    <label>社團名稱<input type="text" id="club"></label>
+    <div class="row"><label>社長班級<input type="text" id="pcls" placeholder="2年8班"></label><label>社長姓名<input type="text" id="pname"></label></div>
+    <div class="row"><label>申請人班級座號<input type="text" id="acls" placeholder="2年8班1號"></label><label>申請人姓名<input type="text" id="aname"></label></div>
+    <label>申請人手機<input type="tel" id="aphone"></label>
+    <label>申請日期<input type="date" id="adate"></label>
+  </fieldset>
+  <fieldset><legend>借用場地</legend>
+    <div id="venues"></div>
+    <label>其他場地<input type="text" id="vother"></label>
+    <label>借用班級教室(例:2年8班)<input type="text" id="vclass"></label>
+    <label>教室班導簽名處<span class="hint">(留白供手簽)</span></label>
+  </fieldset>
+  <fieldset><legend>場地衛生負責人</legend>
+    <label><input type="checkbox" id="sameAsApplicant" checked> 同申請人</label>
+    <div id="sanBox" style="display:none">
+      <div class="row"><label>班級座號<input type="text" id="scls"></label><label>姓名<input type="text" id="sname"></label></div>
+      <label>手機<input type="tel" id="sphone"></label>
+    </div>
+  </fieldset>
+  <fieldset><legend>借用時間 <span id="cnt" class="hint"></span></legend>
+    <div id="slots"></div>
+    <button class="btn" id="addSlot">＋ 新增時段</button>
+    <div class="hint" style="margin-top:6px">≤3 筆:列印第 1 頁(A4 上下兩聯)。<br>4～12 筆:列印第 2、3 頁(社團活動組聯、總務處聯各一頁)。</div>
+  </fieldset>
+  <fieldset><legend>借用事由 / 名單</legend>
+    <label>借用事由<textarea id="reason" rows="2"></textarea></label>
+    <label>使用場地人員名單(一行一人,或用頓號/逗號分隔)<textarea id="members" rows="4"></textarea></label>
+  </fieldset>
+  <div class="row"><button class="btn primary" id="print">列印 / 存成 PDF</button><button class="btn" id="reset">清除資料</button></div>
+  <p class="hint">資料會存在這台瀏覽器裡,下次開啟自動帶入。※借用前 3 天提出申請。</p>
+</div>
+<div class="preview" id="preview"></div>
+</div>
+
+<script>
+const VENUES=["熱舞大合旁","棒球草皮","芷韻風操","康輔風操","中正川堂","中正體育館舞台"];
+const MAX=12, KEY="venueForm.v1";
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const WD="日一二三四五六";
+const today=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")};
+const defaults=()=>({club:"棒球社",pcls:"2年8班",pname:"林耘竹",acls:"2年8班1號",aname:"王力恩",aphone:"0909-519-290",adate:today(),
+  venues:[],vother:"",vclass:"",same:true,scls:"",sname:"",sphone:"",reason:"",members:"",slots:[{date:"",start:"16:00",end:"18:00"}]});
+let S=Object.assign(defaults(),JSON.parse(localStorage.getItem(KEY)||"{}"));
+
+// ---------- panel ----------
+$("venues").innerHTML=VENUES.map((v,i)=>`<label class="chk"><input type="checkbox" data-v="${v}"> ${v}</label>`).join("");
+const textIds=["club","pcls","pname","acls","aname","aphone","adate","vother","vclass","scls","sname","sphone","reason","members"];
+function load(){
+  textIds.forEach(id=>$(id).value=S[id]||"");
+  document.querySelectorAll("[data-v]").forEach(c=>c.checked=S.venues.includes(c.dataset.v));
+  $("sameAsApplicant").checked=S.same; $("sanBox").style.display=S.same?"none":"block";
+  renderSlots();
+}
+function renderSlots(){
+  $("slots").innerHTML=S.slots.map((s,i)=>`<div class="slot"><span>${i+1}</span>
+    <input type="date" data-i="${i}" data-k="date" value="${s.date}">
+    <input type="time" data-i="${i}" data-k="start" value="${s.start}">
+    <input type="time" data-i="${i}" data-k="end" value="${s.end}">
+    <button data-del="${i}" title="刪除">✕</button></div>`).join("");
+  $("addSlot").disabled=S.slots.length>=MAX;
+  $("cnt").textContent=`(${S.slots.length}/${MAX},${S.slots.length<=3?"第1頁":"第2、3頁"})`;
+}
+function save(){localStorage.setItem(KEY,JSON.stringify(S));render()}
+textIds.forEach(id=>$(id).addEventListener("input",()=>{S[id]=$(id).value;save()}));
+document.querySelectorAll("[data-v]").forEach(c=>c.addEventListener("change",()=>{
+  S.venues=[...document.querySelectorAll("[data-v]")].filter(x=>x.checked).map(x=>x.dataset.v);save()}));
+$("sameAsApplicant").addEventListener("change",e=>{S.same=e.target.checked;$("sanBox").style.display=S.same?"none":"block";save()});
+$("slots").addEventListener("input",e=>{const t=e.target;if(t.dataset.k){S.slots[+t.dataset.i][t.dataset.k]=t.value;save()}});
+$("slots").addEventListener("click",e=>{const d=e.target.dataset.del;if(d!=null){S.slots.splice(+d,1);if(!S.slots.length)S.slots.push({date:"",start:"16:00",end:"18:00"});renderSlots();save()}});
+$("addSlot").onclick=()=>{if(S.slots.length>=MAX)return;const l=S.slots[S.slots.length-1]||{};S.slots.push({date:"",start:l.start||"16:00",end:l.end||"18:00"});renderSlots();save()};
+$("print").onclick=()=>window.print();
+$("reset").onclick=()=>{if(confirm("確定清除所有資料?")){localStorage.removeItem(KEY);S=defaults();load();render()}};
+
+// ---------- form rendering ----------
+function parts(dstr){ // ROC y, m, d, weekday
+  if(!dstr)return null;const [y,m,d]=dstr.split("-").map(Number);
+  return {y:y-1911,m,d,w:WD[new Date(y,m-1,d).getDay()]};
+}
+const blank=(t,w)=>`<span class="u" style="min-width:${w||1.6}em">${t??""}</span>`;
+function slotLine(i,s){
+  const p=parts(s&&s.date);
+  const [sh,sm]=(s&&s.start?s.start:"").split(":"),[eh,em]=(s&&s.end?s.end:"").split(":");
+  return `(${i+1})自${blank(p&&p.y,2.2)}年${blank(p&&p.m)}月${blank(p&&p.d)}日（週${blank(p&&p.w,1)}）`+
+   `${blank(sh)}時${blank(sm)}分至${blank(eh)}時${blank(em)}分`;
+}
+function members(){
+  const list=S.members.split(/[\n,，、;；]+/).map(x=>x.trim()).filter(Boolean);
+  return list;
+}
+function form(label,rows,big,extra){
+  const p=parts(S.adate);
+  const venue=VENUES.map(v=>`${S.venues.includes(v)?"☑":"□"}${v}`);
+  const other=`${S.vother?"☑":"□"}其他${S.vother?esc(S.vother):"＿＿＿＿＿"}`;
+  const room=`${S.vclass?"☑":"□"}借用${S.vclass?esc(S.vclass):"＿＿＿"}班級教室`;
+  const sanit=S.same?`${esc(S.acls)} 姓名:${esc(S.aname)}　手機號碼:${esc(S.aphone)}`:
+    `${esc(S.scls)} 姓名:${esc(S.sname)}　手機號碼:${esc(S.sphone)}`;
+  const slots=Array.from({length:rows},(_,i)=>S.slots[i]);
+  const over=S.slots.some(s=>s.end&&s.end>"18:00");
+  let time;
+  if(big){
+    time=`<div class="timeline">${slots.map((s,i)=>`<span class="slotline">${slotLine(i,s)}</span>`).join("")}</div>
+      <div style="margin-top:2mm">${over?"☑":"□"}練習超過18:00　　督導教師簽名：＿＿＿＿＿＿＿＿＿</div>`;
+  }else{
+    time=slots.map((s,i)=>`<span class="slotline">${slotLine(i,s)}${i==0?`　${over?"☑":"□"}練習超過18:00`:""}${i==1?"　督導教師簽名：＿＿＿＿＿＿":""}</span>`).join("");
+  }
+  const m=members();
+  const mem=m.length?m.map((x,i)=>`(${i+1})${esc(x)}`).join("；"):"(1)　　　；(2)　　　；(3)";
+  return `<div class="form ${big?"big":""}">
+  <h2>新北市立永平高中課後活動場地借用申請表 <span class="copy">${label}</span></h2>
+  <table>
+   <tr><th>社團名稱</th><td>${esc(S.club)}</td><th>社長</th><td>${esc(S.pcls)}　姓名:${esc(S.pname)}</td></tr>
+   <tr><th>申請人</th><td colspan="2">${esc(S.acls)}　姓名:${esc(S.aname)}　手機號碼:${esc(S.aphone)}</td><td>申請日期 ${p?`${p.y}年${p.m}月${p.d}日 星期${p.w}`:"　年　月　日 星期　"}</td></tr>
+   <tr><th>借用場地</th><td colspan="3">${venue.join("　")}<br>${other}　　${room}　借用教室班導簽名：＿＿＿＿＿＿</td></tr>
+   <tr><th style="white-space:normal">場地衛生<br><small>(復原、電源關閉與檢查負責人)</small></th><td colspan="3">${sanit}</td></tr>
+   <tr><th style="white-space:normal">借用時間<br><small>24時制填寫</small></th><td colspan="3">${time}</td></tr>
+   <tr><th>借用事由</th><td colspan="3" style="height:${big?"16mm":"9mm"}">${esc(S.reason)}</td></tr>
+   <tr><th style="white-space:normal">使用場地人員名單</th><td colspan="3" style="height:${big?"22mm":"10mm"}">${m.length?`總人數:${m.length}人　`:""}${mem}</td></tr>
+  </table>
+  <table class="sign" style="margin-top:-1px">
+   <tr><th>社團組長</th><th>衛生組</th><th>生輔組</th><th>體育組</th></tr><tr><td></td><td></td><td></td><td></td></tr>
+  </table>
+  <table class="sign" style="margin-top:-1px">
+   <tr><th>學務主任</th><th>總務處幹事</th><th>總務處事務組長</th><th>總務主任</th></tr><tr><td></td><td></td><td></td><td></td></tr>
+  </table>
+  <div class="note">${extra}</div></div>`;
+}
+const N1="※借用前3天提出申請表　※申請人要負責場地清潔、電源、門窗開關　※須遵守時間與警衛指導　(社團活動組留存聯)";
+const N2="(總務處留存聯)　提醒:※請同學務必遵守時間與警衛大哥指導";
+const CUT="✂-------✂-------✂-------✂-------✂-------✂-------✂-------✂-------✂-------✂-------✂-------✂-------✂-------✂-------✂-------✂-------✂";
+function render(){
+  const n=S.slots.length;let html;
+  if(n<=3){
+    html=`<div class="sheet two">${form("社團活動組留存聯",3,false,N1)}<div class="cut">${CUT}</div>${form("總務處留存聯",3,false,N2)}</div>`;
+  }else{
+    html=`<div class="sheet">${form("社團活動組留存聯",12,true,N1)}</div><div class="sheet">${form("總務處留存聯",12,true,N2)}</div>`;
+  }
+  $("preview").innerHTML=html;
+}
+load();render();
+</script>
+</body>
+</html>
