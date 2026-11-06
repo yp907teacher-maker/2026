@@ -88,6 +88,7 @@ th{font-weight:400;text-align:center;white-space:nowrap;width:22mm}
   </fieldset>
   <fieldset><legend>借用事由 / 名單</legend>
     <label>借用事由<textarea id="reason" rows="2"></textarea></label>
+    <label>總人數(留空=依名單行數計算)<input type="number" min="0" id="total"></label>
     <label>使用場地人員名單(一行一人,或用頓號/逗號分隔)<textarea id="members" rows="4"></textarea></label>
   </fieldset>
   <div class="row"><button class="btn primary" id="print">列印 / 存成 PDF</button><button class="btn" id="reset">清除資料</button></div>
@@ -104,12 +105,12 @@ const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&g
 const WD="日一二三四五六";
 const today=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")};
 const defaults=()=>({club:"棒球社",pcls:"2年8班",pname:"林耘竹",acls:"2年8班1號",aname:"王力恩",aphone:"0909-519-290",adate:today(),
-  venues:[],vother:"",vclass:"",same:true,scls:"",sname:"",sphone:"",reason:"",members:"",slots:[{date:"",start:"16:00",end:"18:00"}]});
+  venues:[],vother:"",vclass:"",same:true,scls:"",sname:"",sphone:"",reason:"",members:"",total:"",slots:[{date:"",start:"16:00",end:"18:00"}]});
 let S=Object.assign(defaults(),JSON.parse(localStorage.getItem(KEY)||"{}"));
 
 // ---------- panel ----------
 $("venues").innerHTML=VENUES.map((v,i)=>`<label class="chk"><input type="checkbox" data-v="${v}"> ${v}</label>`).join("");
-const textIds=["club","pcls","pname","acls","aname","aphone","adate","vother","vclass","scls","sname","sphone","reason","members"];
+const textIds=["club","pcls","pname","acls","aname","aphone","adate","vother","vclass","scls","sname","sphone","reason","members","total"];
 function load(){
   textIds.forEach(id=>$(id).value=S[id]||"");
   document.querySelectorAll("[data-v]").forEach(c=>c.checked=S.venues.includes(c.dataset.v));
@@ -179,7 +180,7 @@ function form(label,rows,big,extra){
    <tr><th style="white-space:normal">場地衛生<br><small>(復原、電源關閉與檢查負責人)</small></th><td colspan="3">${sanit}</td></tr>
    <tr><th style="white-space:normal">借用時間<br><small>24時制填寫</small></th><td colspan="3">${time}</td></tr>
    <tr><th>借用事由</th><td colspan="3" style="height:${big?"16mm":"9mm"}">${esc(S.reason)}</td></tr>
-   <tr><th style="white-space:normal">使用場地人員名單</th><td colspan="3" style="height:${big?"22mm":"10mm"}">${m.length?`總人數:${m.length}人　`:""}${mem}</td></tr>
+   <tr><th style="white-space:normal">使用場地人員名單</th><td colspan="3" style="height:${big?"22mm":"10mm"}">${(S.total||m.length)?`總人數:${S.total||m.length}人　`:""}${mem}</td></tr>
   </table>
   <table class="sign" style="margin-top:-1px">
    <tr><th>社團組長</th><th>衛生組</th><th>生輔組</th><th>體育組</th></tr><tr><td></td><td></td><td></td><td></td></tr>
