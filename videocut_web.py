@@ -36,14 +36,20 @@ SPEC = {
          "options": ["", "9:16", "16:9", "1:1", "4:5"]},
         {"name": "mode", "flag": "--mode", "label": "比例方式", "kind": "select", "options": ["crop", "pad"]},
         {"name": "srt", "flag": "--srt", "label": "字幕 SRT（可不選）", "kind": "file", "optional": True},
-        {"name": "music", "flag": "--music", "label": "背景音樂（可不選）", "kind": "file", "optional": True},
-        {"name": "volume", "flag": "--volume", "label": "音樂音量 0~1", "kind": "number", "default": "0.3"}]},
+        {"name": "card_x", "flag": "--card-x", "kind": "hidden"},
+        {"name": "card_y", "flag": "--card-y", "kind": "hidden"},
+        {"name": "music", "flag": "--music", "label": "背景音樂（先上傳自己的 mp3/m4a/wav，可不選）", "kind": "file", "optional": True, "ext": "audio"},
+        {"name": "volume", "flag": "--volume", "label": "音樂音量 0~1", "kind": "number", "default": "0.3"},
+        {"name": "music_start", "flag": "--music-start", "label": "從音樂第幾秒開始", "kind": "text", "default": "0"},
+        {"name": "fade", "flag": "--fade", "label": "音樂淡入淡出秒數（0＝不淡）", "kind": "number", "default": "1.5"}]},
     "card": {"label": "字卡特效", "out": "mp4", "fields": [
         {"name": "card", "flag": "--card", "label": "字卡（每行一張：文字@起-迄秒，如 歡迎收看@0-3）", "kind": "lines"},
         {"name": "effect", "flag": "--effect", "label": "特效（fade 淡入淡出／slide 上滑／pop 彈出）", "kind": "select",
          "options": ["fade", "slide", "pop", "none"]},
-        {"name": "position", "flag": "--position", "label": "位置", "kind": "select",
+        {"name": "position", "flag": "--position", "label": "位置（沒拖曳時使用）", "kind": "select",
          "options": ["center", "top", "bottom"]},
+        {"name": "x", "flag": "--x", "kind": "hidden"},
+        {"name": "y", "flag": "--y", "kind": "hidden"},
         {"name": "size", "flag": "--size", "label": "字體大小", "kind": "number", "default": "64"}]},
     "info": {"label": "影片資訊", "out": None, "fields": []},
     "trim": {"label": "裁切", "out": "mp4", "fields": [
@@ -63,8 +69,10 @@ SPEC = {
         {"name": "srt", "flag": "--srt", "label": "SRT 檔（先上傳）", "kind": "file"},
         {"name": "size", "flag": "--size", "label": "字體大小", "kind": "number", "default": "24"}]},
     "bgm": {"label": "背景音樂", "out": "mp4", "fields": [
-        {"name": "music", "flag": "--music", "label": "音樂檔（先上傳）", "kind": "file"},
-        {"name": "volume", "flag": "--volume", "label": "音量 0~1", "kind": "number", "default": "0.3"}]},
+        {"name": "music", "flag": "--music", "label": "音樂檔（先上傳自己的 mp3/m4a/wav）", "kind": "file", "ext": "audio"},
+        {"name": "volume", "flag": "--volume", "label": "音量 0~1", "kind": "number", "default": "0.3"},
+        {"name": "music_start", "flag": "--music-start", "label": "從音樂第幾秒開始", "kind": "text", "default": "0"},
+        {"name": "fade", "flag": "--fade", "label": "淡入淡出秒數（0＝不淡）", "kind": "number", "default": "1.5"}]},
     "extract-audio": {"label": "擷取音訊", "out": "mp3", "fields": []},
     "gif": {"label": "輸出 GIF", "out": "gif", "fields": [
         {"name": "start", "flag": "-s", "label": "開始", "kind": "text", "default": "0"},
@@ -273,12 +281,14 @@ video,img,audio{width:100%;margin-top:10px;border-radius:6px;background:#000}
 const SPEC=__SPEC__;const $=s=>document.querySelector(s);
 const cmd=$('#cmd');for(const k in SPEC)cmd.add(new Option(SPEC[k].label+'  ('+k+')',k));
 let files=[],sel=new Set();
+const VID=/\.(mp4|mov|m4v|mkv|avi|webm|flv|wmv|mpg|mpeg|ts)$/i,AUD=/\.(mp3|m4a|wav|aac|flac|ogg|wma)$/i;
+const isVid=n=>VID.test(n);
 function fmt(n){return n>1e6?(n/1e6).toFixed(1)+' MB':(n/1e3).toFixed(0)+' KB'}
 async function load(){files=await (await fetch('/api/files')).json();draw();fields()}
 function draw(){const el=$('#files');el.innerHTML=files.length?'':'<div style="color:#888;font-size:13px">尚無檔案</div>';
  for(const f of files){const d=document.createElement('div');d.className='file';
   const cb=document.createElement('input');cb.type='checkbox';cb.checked=sel.has(f.name);
-  cb.onchange=()=>{cb.checked?sel.add(f.name):sel.delete(f.name)};
+  cb.onchange=()=>{cb.checked?sel.add(f.name):sel.delete(f.name);if(typeof preview=='function')preview()};
   d.append(cb);const n=document.createElement('span');n.className='n';n.textContent=f.name+' ('+fmt(f.size)+')';d.append(n);
   const a=document.createElement('a');a.href='/files/'+encodeURIComponent(f.name)+'?download';a.textContent='下載';d.append(a);
   const x=document.createElement('button');x.className='s';x.textContent='刪除';
@@ -286,21 +296,41 @@ function draw(){const el=$('#files');el.innerHTML=files.length?'':'<div style="c
 function fields(){const el=$('#fields');el.innerHTML='';const sp=SPEC[cmd.value];
  for(const f of sp.fields){const l=document.createElement('label');l.textContent=f.label;let i;
   if(f.kind=='select'){i=document.createElement('select');f.options.forEach(o=>i.add(new Option(o,o)))}
-  else if(f.kind=='file'){i=document.createElement('select');if(f.optional)i.add(new Option('（不使用）',''));files.forEach(x=>i.add(new Option(x.name,x.name)))}
+  else if(f.kind=='file'){i=document.createElement('select');if(f.optional)i.add(new Option('（不使用）',''));files.filter(x=>f.ext=='audio'?AUD.test(x.name):true).forEach(x=>i.add(new Option(x.name,x.name)))}
   else if(f.kind=='lines'){i=document.createElement('textarea');i.rows=4;i.placeholder=cmd.value=='cut'?'0-5\n12-20':'歡迎收看@0-3\n限時優惠@5-8'}
+  else if(f.kind=='hidden'){i=document.createElement('input');i.type='hidden';i.dataset.n=f.name;el.append(i);continue}
   else if(f.kind=='check'){i=document.createElement('input');i.type='checkbox';l.prepend(i);i.dataset.n=f.name;el.append(l);continue}
   else{i=document.createElement('input');i.type=f.kind=='number'?'number':'text';i.step='any';if(f.default)i.value=f.default}
   i.dataset.n=f.name;el.append(l,i)}}
 cmd.onchange=fields;
+function preview(){const el=$('#fields');const hx=el.querySelector('[data-n=x],[data-n=card_x]'),hy=el.querySelector('[data-n=y],[data-n=card_y]');
+ if(!hx)return;const first=files.find(f=>sel.has(f.name)&&isVid(f.name));
+ const old=$('#pvbox');if(old)old.remove();const box=document.createElement('div');box.id='pvbox';box.innerHTML='<label>拖曳預覽框調整字卡位置（會覆蓋「位置」選項）</label>';
+ if(!first){box.innerHTML+='<div style="color:#888;font-size:13px">先在左邊勾選一支影片，就能在這裡預覽並拖曳</div>';el.append(box);return}
+ const wrap=document.createElement('div');wrap.style.cssText='position:relative;background:#000;margin-top:6px;border-radius:6px;overflow:hidden;touch-action:none';
+ const v=document.createElement('video');v.src='/files/'+encodeURIComponent(first.name);v.muted=true;v.preload='metadata';v.style.cssText='display:block;width:100%;margin:0;border-radius:0';
+ const preset=el.querySelector('[data-n=preset]'),mode=el.querySelector('[data-n=mode]');
+ const tag=document.createElement('div');tag.textContent='字卡文字';tag.style.cssText='position:absolute;color:#fff;background:#0006;border:1px dashed #fff;padding:4px 10px;cursor:move;white-space:nowrap;text-shadow:0 0 3px #000;user-select:none;transform:translate(-50%,-50%);left:50%;top:50%';
+ function layout(){const p=preset&&preset.value;if(p){const [a,b]=p.split(':').map(Number);wrap.style.aspectRatio=a+'/'+b;wrap.style.maxWidth=(b>a?'260px':'100%');v.style.cssText='position:absolute;inset:0;width:100%;height:100%;margin:0;border-radius:0;object-fit:'+(mode&&mode.value=='pad'?'contain':'cover')}else{wrap.style.aspectRatio='';wrap.style.maxWidth='100%';v.style.cssText='display:block;width:100%;margin:0;border-radius:0'}}
+ function text(){const t=(el.querySelector('textarea')||{}).value||'';const line=t.split('\n')[0].split('@')[0].trim();tag.textContent=line||'字卡文字';
+  const size=+((el.querySelector('[data-n=size],[data-n=card_size]')||{}).value||64);const TH={'9:16':1920,'16:9':1080,'1:1':1080,'4:5':1350};const vh=(preset&&TH[preset.value])||v.videoHeight||720;const bh=wrap.clientHeight||200;tag.style.fontSize=Math.max(10,size*bh/vh)+'px'}
+ function set(fx,fy){fx=Math.min(1,Math.max(0,fx));fy=Math.min(1,Math.max(0,fy));tag.style.left=fx*100+'%';tag.style.top=fy*100+'%';hx.value=fx.toFixed(4);hy.value=fy.toFixed(4)}
+ tag.onpointerdown=e=>{tag.setPointerCapture(e.pointerId);const mv=ev=>{const r=wrap.getBoundingClientRect();set((ev.clientX-r.left)/r.width,(ev.clientY-r.top)/r.height)};
+  tag.onpointermove=mv;tag.onpointerup=()=>{tag.onpointermove=null}};
+ const rst=document.createElement('button');rst.className='s';rst.textContent='重設位置';rst.style.marginTop='6px';rst.onclick=()=>{hx.value='';hy.value='';tag.style.left='50%';tag.style.top='50%'};
+ wrap.append(v,tag);box.append(wrap,rst);el.append(box);layout();v.onloadedmetadata=text;
+ el.querySelectorAll('textarea,[data-n=size],[data-n=card_size]').forEach(i=>i.addEventListener('input',text));
+ [preset,mode].forEach(i=>i&&i.addEventListener('change',layout));setTimeout(text,50)}
+const _fields=fields;fields=function(){_fields();preview()};cmd.onchange=fields;
 async function upload(list){for(const f of list){$('#prog').textContent='上傳中: '+f.name;
  const r=await fetch('/api/upload?name='+encodeURIComponent(f.name),{method:'POST',body:f});
- const j=await r.json();if(j.name)sel.add(j.name)}$('#prog').textContent='';load()}
+ const j=await r.json();if(j.name&&isVid(j.name))sel.add(j.name)}$('#prog').textContent='';load()}
 const drop=$('#drop'),pick=$('#pick');drop.onclick=()=>pick.click();pick.onchange=()=>upload([...pick.files]);
 drop.ondragover=e=>{e.preventDefault();drop.classList.add('over')};drop.ondragleave=()=>drop.classList.remove('over');
 drop.ondrop=e=>{e.preventDefault();drop.classList.remove('over');upload([...e.dataTransfer.files])};
 $('#run').onclick=async()=>{const m=$('#msg'),b=$('#run');m.className='';$('#result').innerHTML='';
- const inputs=files.filter(f=>sel.has(f.name)).map(f=>f.name);
- if(!inputs.length){m.className='err';m.textContent='請先勾選至少一個檔案';return}
+ const inputs=files.filter(f=>sel.has(f.name)&&isVid(f.name)).map(f=>f.name);
+ if(!inputs.length){m.className='err';m.textContent='請先勾選至少一個影片檔';return}
  const params={};$('#fields').querySelectorAll('[data-n]').forEach(i=>params[i.dataset.n]=i.type=='checkbox'?i.checked:i.value);
  b.disabled=true;m.textContent='處理中…';
  try{const r=await fetch('/api/run',{method:'POST',body:JSON.stringify({cmd:cmd.value,inputs,params})});

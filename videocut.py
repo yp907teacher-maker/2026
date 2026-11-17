@@ -248,7 +248,14 @@ def cmd_card(a):
     need(a.input)
     cards = [parse_card(c) for c in a.card]
     font = os.path.abspath(find_font(a.font))
-    pos_y = {"top": "h*0.12", "center": "(h-th)/2", "bottom": "h*0.78"}[a.position]
+    cx, cy = getattr(a, "x", None), getattr(a, "y", None)
+    if cx is not None and cy is not None:  # 自訂位置：文字中心點佔畫面寬高的比例
+        cx, cy = min(max(float(cx), 0), 1), min(max(float(cy), 0), 1)
+        pos_x = f"max(10,min(w-text_w-10,w*{cx:.4f}-text_w/2))"
+        pos_y = f"max(10,min(h-th-10,h*{cy:.4f}-th/2))"
+    else:
+        pos_x = "(w-text_w)/2"
+        pos_y = {"top": "h*0.12", "center": "(h-th)/2", "bottom": "h*0.78"}[a.position]
     d = 0.4  # 進出場動畫秒數
     with tempfile.TemporaryDirectory() as td:
         filters = []
@@ -268,7 +275,7 @@ def cmd_card(a):
                 f"drawtext=fontfile='{font}':textfile=c{i}.txt:fontsize='{size}':"
                 f"fontcolor={a.color}:borderw=3:bordercolor=black:"
                 f"box=1:boxcolor=black@0.35:boxborderw=18:"
-                f"x=(w-text_w)/2:y='{y}':alpha='{alpha}':enable='between(t,{s},{e})'")
+                f"x='{pos_x}':y='{y}':alpha='{alpha}':enable='between(t,{s},{e})'")
         r = subprocess.run(
             ["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-i", os.path.abspath(a.input),
              "-vf", ",".join(filters), "-c:a", "copy", os.path.abspath(a.output)],
@@ -281,13 +288,20 @@ def cmd_card(a):
 def cmd_bgm(a):
     need(a.input); need(a.music)
     vol = a.volume
+    fade = max(0.0, getattr(a, "fade", 1.5))
+    start = to_sec(getattr(a, "music_start", 0) or 0)
+    total = duration(a.input)
+    shape = f"volume={vol}"
+    if fade > 0:
+        fade = min(fade, total / 2)
+        shape += f",afade=t=in:d={fade},afade=t=out:st={max(0, total - fade):.3f}:d={fade}"
     if has_audio(a.input):
-        fc = (f"[1:a]volume={vol}[m];[0:a][m]amix=inputs=2:duration=first:"
+        fc = (f"[1:a]{shape}[m];[0:a][m]amix=inputs=2:duration=first:"
               f"dropout_transition=0[a]")
     else:
-        fc = f"[1:a]volume={vol}[a]"
-    ff("-i", a.input, "-stream_loop", "-1", "-i", a.music, "-filter_complex", fc,
-       "-map", "0:v", "-map", "[a]", "-c:v", "copy", "-shortest", a.output)
+        fc = f"[1:a]{shape}[a]"
+    ff("-i", a.input, "-stream_loop", "-1", "-ss", str(start), "-i", a.music,
+       "-filter_complex", fc, "-map", "0:v", "-map", "[a]", "-c:v", "copy", "-shortest", a.output)
     print(f"已輸出 {a.output}")
 
 
@@ -378,11 +392,13 @@ def cmd_auto(a):
                                      height=None, mode=a.mode)); cur = [o]
         if a.card:
             o = tmp(); cmd_card(NS(input=cur[0], output=o, card=a.card, effect=a.effect, size=a.card_size,
-                                   color="white", position=a.card_pos, font=a.font)); cur = [o]
+                                   color="white", position=a.card_pos, font=a.font,
+                                   x=a.card_x, y=a.card_y)); cur = [o]
         if a.srt:
             o = tmp(); cmd_subtitle(NS(input=cur[0], output=o, srt=a.srt, size=24, font=None)); cur = [o]
         if a.music:
-            o = tmp(); cmd_bgm(NS(input=cur[0], output=o, music=a.music, volume=a.volume)); cur = [o]
+            o = tmp(); cmd_bgm(NS(input=cur[0], output=o, music=a.music, volume=a.volume,
+                                   music_start=a.music_start, fade=a.fade)); cur = [o]
         shutil.copy(cur[0], a.output)
     print(f"一鍵成片完成: {a.output}（{duration(a.output):.1f} 秒）")
 
@@ -425,6 +441,8 @@ def build_parser():
     sp = add("bgm", cmd_bgm, "加背景音樂")
     sp.add_argument("--music", required=True)
     sp.add_argument("--volume", type=float, default=0.3)
+    sp.add_argument("--music-start", default="0", help="從音樂的第幾秒開始")
+    sp.add_argument("--fade", type=float, default=1.5, help="淡入淡出秒數，0＝不淡")
     add("extract-audio", cmd_extract_audio, "擷取音訊")
     sp = add("gif", cmd_gif, "輸出 GIF")
     sp.add_argument("-s", "--start", default="0")
@@ -447,13 +465,19 @@ def build_parser():
     sp.add_argument("--effect", choices=EFFECTS, default="fade")
     sp.add_argument("--card-size", type=int, default=64)
     sp.add_argument("--card-pos", choices=["top", "center", "bottom"], default="center")
+    sp.add_argument("--card-x", type=float, help="字卡中心 X（0~1，0.5＝置中）")
+    sp.add_argument("--card-y", type=float, help="字卡中心 Y（0~1）")
     sp.add_argument("--font")
     sp.add_argument("--music")
     sp.add_argument("--volume", type=float, default=0.3)
+    sp.add_argument("--music-start", default="0", help="從音樂的第幾秒開始")
+    sp.add_argument("--fade", type=float, default=1.5, help="音樂淡入淡出秒數")
     sp = add("card", cmd_card, "加字卡並套用動畫特效")
     sp.add_argument("--card", action="append", required=True, metavar="文字@起-迄")
     sp.add_argument("--effect", choices=EFFECTS, default="fade")
     sp.add_argument("--size", type=int, default=64)
+    sp.add_argument("--x", type=float, help="字卡中心 X（0~1，0.5＝置中），與 --y 一起使用")
+    sp.add_argument("--y", type=float, help="字卡中心 Y（0~1）")
     sp.add_argument("--color", default="white")
     sp.add_argument("--position", choices=["top", "center", "bottom"], default="center")
     sp.add_argument("--font", help="字型檔路徑（預設自動尋找支援中文的字型）")
