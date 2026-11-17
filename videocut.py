@@ -25,9 +25,12 @@ import sys
 import tempfile
 
 
+class VideocutError(Exception):
+    pass
+
+
 def die(msg):
-    print(f"錯誤: {msg}", file=sys.stderr)
-    sys.exit(1)
+    raise VideocutError(msg)
 
 
 def run(cmd, capture=False):
@@ -314,7 +317,11 @@ def build_parser():
 
 def main():
     a = build_parser().parse_args()
-    a.fn(a)
+    try:
+        a.fn(a)
+    except VideocutError as e:
+        print(f"錯誤: {e}", file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":
