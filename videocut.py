@@ -263,6 +263,45 @@ def cmd_silence(a):
     cmd_cut(a)
 
 
+def cmd_auto(a):
+    """一鍵成片: (去靜音) -> 合併 -> 改比例 -> (字幕) -> (配樂) -> 輸出。"""
+    from argparse import Namespace as NS
+    for f in a.inputs:
+        need(f)
+    with tempfile.TemporaryDirectory() as td:
+        n = [0]
+
+        def tmp():
+            n[0] += 1
+            return os.path.join(td, f"step{n[0]}.mp4")
+
+        cur = list(a.inputs)
+        if a.remove_silence:
+            nxt = []
+            for f in cur:
+                if has_audio(f):
+                    o = tmp()
+                    try:
+                        cmd_silence(NS(input=f, output=o, noise=-30, min_silence=0.5))
+                        nxt.append(o)
+                        continue
+                    except VideocutError:
+                        pass  # 整段都是靜音就保留原檔
+                nxt.append(f)
+            cur = nxt
+        if len(cur) > 1:
+            o = tmp(); cmd_concat(NS(inputs=cur, output=o)); cur = [o]
+        if a.preset:
+            o = tmp(); cmd_resize(NS(input=cur[0], output=o, preset=a.preset, width=None,
+                                     height=None, mode=a.mode)); cur = [o]
+        if a.srt:
+            o = tmp(); cmd_subtitle(NS(input=cur[0], output=o, srt=a.srt, size=24, font=None)); cur = [o]
+        if a.music:
+            o = tmp(); cmd_bgm(NS(input=cur[0], output=o, music=a.music, volume=a.volume)); cur = [o]
+        shutil.copy(cur[0], a.output)
+    print(f"一鍵成片完成: {a.output}（{duration(a.output):.1f} 秒）")
+
+
 def build_parser():
     p = argparse.ArgumentParser(prog="videocut", description="ffmpeg 剪片工具",
                                 formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -312,6 +351,14 @@ def build_parser():
     sp = add("silence", cmd_silence, "自動移除靜音片段")
     sp.add_argument("--noise", type=int, default=-30, help="靜音門檻 dB")
     sp.add_argument("--min-silence", type=float, default=0.5)
+    sp = add("auto", cmd_auto, "一鍵成片（合併、去靜音、改比例、字幕、配樂）", inp=False)
+    sp.add_argument("inputs", nargs="+")
+    sp.add_argument("--remove-silence", action="store_true")
+    sp.add_argument("--preset", choices=PRESETS)
+    sp.add_argument("--mode", choices=["pad", "crop"], default="crop")
+    sp.add_argument("--srt")
+    sp.add_argument("--music")
+    sp.add_argument("--volume", type=float, default=0.3)
     return p
 
 

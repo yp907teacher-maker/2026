@@ -26,6 +26,14 @@ MAX_UPLOAD = 2 * 1024 ** 3
 # 每個功能的欄位定義，前端依此產生表單
 # kind: text / number / select / file；flag 為 None 表示位置參數
 SPEC = {
+    "auto": {"label": "⭐ 一鍵成片（勾選多支素材）", "out": "mp4", "multi": True, "fields": [
+        {"name": "remove_silence", "flag": "--remove-silence", "label": "自動移除靜音", "kind": "check"},
+        {"name": "preset", "flag": "--preset", "label": "輸出比例（留空＝不改）", "kind": "select",
+         "options": ["", "9:16", "16:9", "1:1", "4:5"]},
+        {"name": "mode", "flag": "--mode", "label": "比例方式", "kind": "select", "options": ["crop", "pad"]},
+        {"name": "srt", "flag": "--srt", "label": "字幕 SRT（可不選）", "kind": "file", "optional": True},
+        {"name": "music", "flag": "--music", "label": "背景音樂（可不選）", "kind": "file", "optional": True},
+        {"name": "volume", "flag": "--volume", "label": "音樂音量 0~1", "kind": "number", "default": "0.3"}]},
     "info": {"label": "影片資訊", "out": None, "fields": []},
     "trim": {"label": "裁切", "out": "mp4", "fields": [
         {"name": "start", "flag": "-s", "label": "開始（秒或 mm:ss）", "kind": "text", "default": "0"},
@@ -99,6 +107,8 @@ def run_job(req):
                 if line.strip():
                     argv += [f["flag"], line.strip()]
         elif f["kind"] == "file":
+            if not v and f.get("optional"):
+                continue
             if not v:
                 raise videocut.VideocutError(f"請選擇：{f['label']}")
             argv += [f["flag"], in_work(v)]
@@ -265,7 +275,7 @@ function draw(){const el=$('#files');el.innerHTML=files.length?'':'<div style="c
 function fields(){const el=$('#fields');el.innerHTML='';const sp=SPEC[cmd.value];
  for(const f of sp.fields){const l=document.createElement('label');l.textContent=f.label;let i;
   if(f.kind=='select'){i=document.createElement('select');f.options.forEach(o=>i.add(new Option(o,o)))}
-  else if(f.kind=='file'){i=document.createElement('select');files.forEach(x=>i.add(new Option(x.name,x.name)))}
+  else if(f.kind=='file'){i=document.createElement('select');if(f.optional)i.add(new Option('（不使用）',''));files.forEach(x=>i.add(new Option(x.name,x.name)))}
   else if(f.kind=='lines'){i=document.createElement('textarea');i.rows=4;i.placeholder='0-5\n12-20'}
   else if(f.kind=='check'){i=document.createElement('input');i.type='checkbox';l.prepend(i);i.dataset.n=f.name;el.append(l);continue}
   else{i=document.createElement('input');i.type=f.kind=='number'?'number':'text';i.step='any';if(f.default)i.value=f.default}
