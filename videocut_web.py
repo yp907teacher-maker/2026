@@ -28,6 +28,7 @@ MAX_UPLOAD = 2 * 1024 ** 3
 SPEC = {
     "auto": {"label": "⭐ 一鍵成片（勾選多支素材）", "out": "mp4", "multi": True, "fields": [
         {"name": "remove_silence", "flag": "--remove-silence", "label": "自動移除靜音", "kind": "check"},
+        {"name": "duration", "flag": "--duration", "label": "快剪目標秒數（清空＝不縮短）", "kind": "number", "default": "15"},
         {"name": "preset", "flag": "--preset", "label": "輸出比例（留空＝不改）", "kind": "select",
          "options": ["", "9:16", "16:9", "1:1", "4:5"]},
         {"name": "mode", "flag": "--mode", "label": "比例方式", "kind": "select", "options": ["crop", "pad"]},

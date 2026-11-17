@@ -264,7 +264,7 @@ def cmd_silence(a):
 
 
 def cmd_auto(a):
-    """一鍵成片: (去靜音) -> 合併 -> 改比例 -> (字幕) -> (配樂) -> 輸出。"""
+    """一鍵成片: (去靜音) -> 合併 -> (縮短到目標秒數) -> 改比例 -> (字幕) -> (配樂) -> 輸出。"""
     from argparse import Namespace as NS
     for f in a.inputs:
         need(f)
@@ -291,6 +291,18 @@ def cmd_auto(a):
             cur = nxt
         if len(cur) > 1:
             o = tmp(); cmd_concat(NS(inputs=cur, output=o)); cur = [o]
+        if a.duration:
+            total = duration(cur[0])
+            if total > a.duration + 0.5:
+                k = max(1, round(a.duration / 2.5))  # 約每段 2.5 秒，均勻取自全片
+                seg = a.duration / k
+                starts = [0.0] if k == 1 else [i * (total - seg) / (k - 1) for i in range(k)]
+                o = tmp()
+                cmd_cut(NS(input=cur[0], output=o,
+                           keep=[f"{t:.3f}-{t + seg:.3f}" for t in starts]))
+                cur = [o]
+            else:
+                print(f"素材只有 {total:.1f} 秒，未超過目標 {a.duration} 秒，不另外縮短")
         if a.preset:
             o = tmp(); cmd_resize(NS(input=cur[0], output=o, preset=a.preset, width=None,
                                      height=None, mode=a.mode)); cur = [o]
@@ -354,6 +366,7 @@ def build_parser():
     sp = add("auto", cmd_auto, "一鍵成片（合併、去靜音、改比例、字幕、配樂）", inp=False)
     sp.add_argument("inputs", nargs="+")
     sp.add_argument("--remove-silence", action="store_true")
+    sp.add_argument("--duration", type=float, help="目標秒數：超過就均勻取精華縮短（快剪）")
     sp.add_argument("--preset", choices=PRESETS)
     sp.add_argument("--mode", choices=["pad", "crop"], default="crop")
     sp.add_argument("--srt")
