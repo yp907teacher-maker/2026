@@ -29,12 +29,22 @@ SPEC = {
     "auto": {"label": "⭐ 一鍵成片（勾選多支素材）", "out": "mp4", "multi": True, "fields": [
         {"name": "remove_silence", "flag": "--remove-silence", "label": "自動移除靜音", "kind": "check"},
         {"name": "duration", "flag": "--duration", "label": "快剪目標秒數（清空＝不縮短）", "kind": "number", "default": "15"},
+        {"name": "card", "flag": "--card", "label": "字卡（每行一張：文字@起-迄秒，如 歡迎收看@0-3）", "kind": "lines"},
+        {"name": "effect", "flag": "--effect", "label": "字卡特效", "kind": "select",
+         "options": ["fade", "slide", "pop", "none"]},
         {"name": "preset", "flag": "--preset", "label": "輸出比例（留空＝不改）", "kind": "select",
          "options": ["", "9:16", "16:9", "1:1", "4:5"]},
         {"name": "mode", "flag": "--mode", "label": "比例方式", "kind": "select", "options": ["crop", "pad"]},
         {"name": "srt", "flag": "--srt", "label": "字幕 SRT（可不選）", "kind": "file", "optional": True},
         {"name": "music", "flag": "--music", "label": "背景音樂（可不選）", "kind": "file", "optional": True},
         {"name": "volume", "flag": "--volume", "label": "音樂音量 0~1", "kind": "number", "default": "0.3"}]},
+    "card": {"label": "字卡特效", "out": "mp4", "fields": [
+        {"name": "card", "flag": "--card", "label": "字卡（每行一張：文字@起-迄秒，如 歡迎收看@0-3）", "kind": "lines"},
+        {"name": "effect", "flag": "--effect", "label": "特效（fade 淡入淡出／slide 上滑／pop 彈出）", "kind": "select",
+         "options": ["fade", "slide", "pop", "none"]},
+        {"name": "position", "flag": "--position", "label": "位置", "kind": "select",
+         "options": ["center", "top", "bottom"]},
+        {"name": "size", "flag": "--size", "label": "字體大小", "kind": "number", "default": "64"}]},
     "info": {"label": "影片資訊", "out": None, "fields": []},
     "trim": {"label": "裁切", "out": "mp4", "fields": [
         {"name": "start", "flag": "-s", "label": "開始（秒或 mm:ss）", "kind": "text", "default": "0"},
@@ -277,7 +287,7 @@ function fields(){const el=$('#fields');el.innerHTML='';const sp=SPEC[cmd.value]
  for(const f of sp.fields){const l=document.createElement('label');l.textContent=f.label;let i;
   if(f.kind=='select'){i=document.createElement('select');f.options.forEach(o=>i.add(new Option(o,o)))}
   else if(f.kind=='file'){i=document.createElement('select');if(f.optional)i.add(new Option('（不使用）',''));files.forEach(x=>i.add(new Option(x.name,x.name)))}
-  else if(f.kind=='lines'){i=document.createElement('textarea');i.rows=4;i.placeholder='0-5\n12-20'}
+  else if(f.kind=='lines'){i=document.createElement('textarea');i.rows=4;i.placeholder=cmd.value=='cut'?'0-5\n12-20':'歡迎收看@0-3\n限時優惠@5-8'}
   else if(f.kind=='check'){i=document.createElement('input');i.type='checkbox';l.prepend(i);i.dataset.n=f.name;el.append(l);continue}
   else{i=document.createElement('input');i.type=f.kind=='number'?'number':'text';i.step='any';if(f.default)i.value=f.default}
   i.dataset.n=f.name;el.append(l,i)}}

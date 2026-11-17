@@ -208,6 +208,76 @@ def cmd_subtitle(a):
     print(f"已輸出 {a.output}")
 
 
+FONT_CANDIDATES = [
+    "/System/Library/Fonts/PingFang.ttc",
+    "/System/Library/Fonts/STHeiti Medium.ttc",
+    "/System/Library/Fonts/Hiragino Sans GB.ttc",
+    "/Library/Fonts/Arial Unicode.ttf",
+    "C:/Windows/Fonts/msjhbd.ttc",
+    "C:/Windows/Fonts/msyh.ttc",
+    "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc",
+    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+    "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+]
+EFFECTS = ["fade", "slide", "pop", "none"]
+
+
+def find_font(user_font=None):
+    if user_font:
+        return need(user_font)
+    for f in FONT_CANDIDATES:
+        if os.path.isfile(f):
+            return f
+    die("找不到可用字型，請用 --font 指定一個 .ttf/.ttc 字型檔")
+
+
+def parse_card(spec):
+    """'文字@起-迄' -> (文字, 起, 迄)。例如 '歡迎收看@0-3'。"""
+    m = re.fullmatch(r"(.+)@([\d:.]+)-([\d:.]+)", spec.strip(), flags=re.S)
+    if not m:
+        die(f"字卡格式應為 文字@起-迄（秒）: {spec}")
+    s, e = to_sec(m[2]), to_sec(m[3])
+    if e <= s:
+        die(f"字卡迄點需大於起點: {spec}")
+    return m[1].replace("\\n", "\n"), s, e
+
+
+def cmd_card(a):
+    """在影片上加字卡並套用動畫特效（淡入淡出/上滑/彈出）。"""
+    need(a.input)
+    cards = [parse_card(c) for c in a.card]
+    font = os.path.abspath(find_font(a.font))
+    pos_y = {"top": "h*0.12", "center": "(h-th)/2", "bottom": "h*0.78"}[a.position]
+    d = 0.4  # 進出場動畫秒數
+    with tempfile.TemporaryDirectory() as td:
+        filters = []
+        for i, (text, s, e) in enumerate(cards):
+            with open(os.path.join(td, f"c{i}.txt"), "w", encoding="utf-8") as fh:
+                fh.write(text)
+            prog = f"min(1,max(0,min((t-{s})/{d},({e}-t)/{d})))"  # 0→1→0
+            size, y, alpha = str(a.size), pos_y, "1"
+            if a.effect == "fade":
+                alpha = prog
+            elif a.effect == "slide":
+                alpha = prog
+                y = f"({pos_y})+(1-{prog})*60"
+            elif a.effect == "pop":
+                size = f"{a.size}*(0.3+0.7*{prog})"
+            filters.append(
+                f"drawtext=fontfile='{font}':textfile=c{i}.txt:fontsize='{size}':"
+                f"fontcolor={a.color}:borderw=3:bordercolor=black:"
+                f"box=1:boxcolor=black@0.35:boxborderw=18:"
+                f"x=(w-text_w)/2:y='{y}':alpha='{alpha}':enable='between(t,{s},{e})'")
+        r = subprocess.run(
+            ["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-i", os.path.abspath(a.input),
+             "-vf", ",".join(filters), "-c:a", "copy", os.path.abspath(a.output)],
+            cwd=td, capture_output=True, text=True)
+        if r.returncode:
+            die(r.stderr[-800:])
+    print(f"已輸出 {a.output}（{len(cards)} 張字卡，特效 {a.effect}）")
+
+
 def cmd_bgm(a):
     need(a.input); need(a.music)
     vol = a.volume
@@ -306,6 +376,9 @@ def cmd_auto(a):
         if a.preset:
             o = tmp(); cmd_resize(NS(input=cur[0], output=o, preset=a.preset, width=None,
                                      height=None, mode=a.mode)); cur = [o]
+        if a.card:
+            o = tmp(); cmd_card(NS(input=cur[0], output=o, card=a.card, effect=a.effect, size=a.card_size,
+                                   color="white", position=a.card_pos, font=a.font)); cur = [o]
         if a.srt:
             o = tmp(); cmd_subtitle(NS(input=cur[0], output=o, srt=a.srt, size=24, font=None)); cur = [o]
         if a.music:
@@ -370,8 +443,20 @@ def build_parser():
     sp.add_argument("--preset", choices=PRESETS)
     sp.add_argument("--mode", choices=["pad", "crop"], default="crop")
     sp.add_argument("--srt")
+    sp.add_argument("--card", action="append", metavar="文字@起-迄", help="字卡，可重複；畫面位置依最終成品時間")
+    sp.add_argument("--effect", choices=EFFECTS, default="fade")
+    sp.add_argument("--card-size", type=int, default=64)
+    sp.add_argument("--card-pos", choices=["top", "center", "bottom"], default="center")
+    sp.add_argument("--font")
     sp.add_argument("--music")
     sp.add_argument("--volume", type=float, default=0.3)
+    sp = add("card", cmd_card, "加字卡並套用動畫特效")
+    sp.add_argument("--card", action="append", required=True, metavar="文字@起-迄")
+    sp.add_argument("--effect", choices=EFFECTS, default="fade")
+    sp.add_argument("--size", type=int, default=64)
+    sp.add_argument("--color", default="white")
+    sp.add_argument("--position", choices=["top", "center", "bottom"], default="center")
+    sp.add_argument("--font", help="字型檔路徑（預設自動尋找支援中文的字型）")
     return p
 
 
